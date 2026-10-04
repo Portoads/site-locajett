@@ -3,12 +3,14 @@ import ReactDOM from 'react-dom/client'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import './styles.css'
 import { PublicLayout } from './components/Layout'
-import { Home, JetSkis, JetSkiDetail, Experiencias, ComoFunciona, Locais, Sobre, Contato } from './pages/Public'
+import { Home, JetSkis, JetSkiDetail, Experiencias, ComoFunciona, Locais, Sobre, Contato, Venda, VendaDetalhe } from './pages/Public'
+import { loadRemote } from './store'
 import MinhaReserva from './pages/MinhaReserva'
 import { Login, Cadastro, ClienteLayout, ClienteHome, ClienteReservas, ClienteLocacoes, ClientePagamentos, ClienteContratos, ClientePerfil } from './pages/Cliente'
 import { AdminLayout, AdminModule } from './pages/admin/Admin'
 import { PageHead } from './components/Layout'
 
+loadRemote()
 ReactDOM.createRoot(document.getElementById('root')).render(
   <BrowserRouter>
     <Routes>
@@ -21,6 +23,8 @@ ReactDOM.createRoot(document.getElementById('root')).render(
         <Route path="/locais" element={<Locais />} />
         <Route path="/sobre" element={<Sobre />} />
         <Route path="/contato" element={<Contato />} />
+        <Route path="/venda" element={<Venda />} />
+        <Route path="/venda/:id" element={<VendaDetalhe />} />
         <Route path="/login" element={<Login />} />
         <Route path="/cadastro" element={<Cadastro />} />
         <Route path="/minha-reserva" element={<MinhaReserva />} />

@@ -8,11 +8,11 @@ export const SITE = {
   nome: 'Loca Jett Oficial',
   slogan: 'Sua próxima experiência começa na água.',
   regiao: 'Goiás — GO',
-  whatsapp: '', // só números com DDI. Ex.: 5562900000000
-  telefone: '',
+  whatsapp: '5562981047747', // só números com DDI
+  telefone: '(62) 98104-7747',
   email: '',
   endereco: '',
-  instagram: '',
+  instagram: '@locajetoficial',
   horario: '',
   cnpj: '',
 }
