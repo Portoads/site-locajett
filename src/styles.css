@@ -299,7 +299,7 @@ tr:hover td { background: rgba(255,255,255,.015); }
 /* =====================================================================
    Refinamento v3 — alinhamento, ritmo vertical, contraste e acabamento
    ===================================================================== */
-:root { --container: 1240px; --gutter: clamp(20px, 4vw, 40px); }
+:root { --container: 1280px; --gutter: clamp(20px, 4vw, 40px); }
 .container { padding: 0 var(--gutter); }
 .section { padding: clamp(80px, 9vw, 128px) 0; }
 p { line-height: 1.75; }
@@ -328,8 +328,9 @@ h2 { letter-spacing: -0.01em; }
 .logo-word b { font-size: 1.3rem; letter-spacing: .22em; line-height: 1; }
 .logo-word small { font-size: .55rem; letter-spacing: .62em; margin-top: 6px; padding-left: 2px; }
 .nav-links { gap: 4px; justify-self: center; }
-.nav-links a { font-size: .7rem; letter-spacing: .15em; padding: 10px 10px; }
-.nav-links a::after { left: 10px; right: 10px; bottom: 3px; }
+.nav-links a { font-size: .68rem; letter-spacing: .13em; padding: 10px 9px; }
+.nav-links a::after { left: 9px; right: 9px; bottom: 3px; }
+@media (max-width: 1440px) { .nav-links a { letter-spacing: .1em; padding: 10px 7px; } .nav-links a::after { left: 7px; right: 7px; } }
 .cart-btn, .nav-account { height: 42px; padding: 0 16px !important; }
 .nav-account { gap: 9px !important; }
 @media (max-width: 1280px) {
