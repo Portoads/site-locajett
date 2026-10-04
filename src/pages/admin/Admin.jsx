@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react'
 import { Link, NavLink, Outlet, useParams } from 'react-router-dom'
-import { useDB, getDB, setDB, upsert, brl, fmtDate, today, STATUS, JET_STATUS, ROLES, can, tier, waLink, whatsNumber, slotsFor, DURACOES, jetPrice, resetDB, clearExamples, notify , localISO } from '../../store'
-import { Logo, Badge, JetBadge, Modal, Field, toast, Toaster } from '../../components/ui'
+import { useDB, getDB, setDB, upsert, brl, fmtDate, today, STATUS, JET_STATUS, SALE_STATUS, ROLES, can, tier, waLink, whatsNumber, resetDB, clearExamples, notify, localISO, rangeConflict, rangeEnd, addDaysISO, diariasLabel, adminLogin, adminLogout, adminToken, adminPull, PAGAMENTO } from '../../store'
+import { calcPrice } from '../../shared'
+import { Logo, Badge, JetBadge, JetPhoto, Modal, Field, toast, Toaster } from '../../components/ui'
 import { Bars, HBars, Crud } from './kit'
 import { contractText } from '../contract'
 
-const MODS = [['dashboard', 'Dashboard', '📊'], ['jet-skis', 'Jet Skis', '🌊'], ['clientes', 'Clientes', '👥'], ['reservas', 'Reservas', '📅'], ['locacoes', 'Locações', '⏱️'], ['calendario', 'Calendário', '🗓️'], ['pagamentos', 'Pagamentos', '💳'], ['financeiro', 'Financeiro', '💰'], ['manutencao', 'Manutenção', '🔧'], ['contratos', 'Contratos', '📄'], ['promocoes', 'Promoções', '🏷️'], ['fidelidade', 'Fidelidade', '⭐'], ['indicacoes', 'Indicações', '🤝'], ['avaliacoes', 'Avaliações', '💬'], ['relatorios', 'Relatórios', '📈'], ['notificacoes', 'Notificações', '🔔'], ['usuarios', 'Usuários', '🔐'], ['configuracoes', 'Configurações', '⚙️']]
+const MODS = [['dashboard', 'Dashboard', '📊'], ['jet-skis', 'Jet Skis', '🌊'], ['venda', 'Venda de Jet Skis', '🏷️'], ['clientes', 'Clientes', '👥'], ['reservas', 'Reservas', '📅'], ['bloqueios', 'Bloquear datas', '⛔'], ['locacoes', 'Locações', '⏱️'], ['calendario', 'Calendário', '🗓️'], ['pagamentos', 'Pagamentos', '💳'], ['financeiro', 'Financeiro', '💰'], ['manutencao', 'Manutenção', '🔧'], ['contratos', 'Contratos', '📄'], ['promocoes', 'Cupons e promoções', '🎟️'], ['fidelidade', 'Fidelidade', '⭐'], ['indicacoes', 'Indicações', '🤝'], ['avaliacoes', 'Avaliações', '💬'], ['relatorios', 'Relatórios', '📈'], ['notificacoes', 'Notificações', '🔔'], ['usuarios', 'Usuários', '🔐'], ['configuracoes', 'Configurações', '⚙️']]
 const jetName = (db, id) => { const j = db.jetskis.find((x) => x.id === id); return j ? `${j.marca} ${j.modelo}` : '-' }
 const cliName = (db, id) => db.clients.find((x) => x.id === id)?.nome || '-'
 const valid = (r) => r.status !== 'cancelada'
@@ -15,8 +16,14 @@ const dayISO = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return
 function AdminLogin() {
   const [f, setF] = useState({ email: '', senha: '' })
   const [err, setErr] = useState('')
-  const submit = (e) => {
-    e.preventDefault()
+  const [loading, setLoading] = useState(false)
+  const submit = async (e) => {
+    e.preventDefault(); setErr('')
+    if (getDB().remote) {
+      setLoading(true)
+      try { const u = await adminLogin(f.email.trim(), f.senha); setDB((d) => ({ session: { ...d.session, adminId: u.id } })) } catch (ex) { setErr(ex.message) }
+      setLoading(false); return
+    }
     const u = getDB().users.find((x) => x.email === f.email.trim().toLowerCase() && x.senha === f.senha && x.ativo)
     if (!u) return setErr('Credenciais inválidas')
     setDB((d) => ({ session: { ...d.session, adminId: u.id } }))
@@ -28,8 +35,8 @@ function AdminLogin() {
         <Field label="E-mail" id="a-e"><input id="a-e" className="input" value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} autoComplete="username" /></Field>
         <Field label="Senha" id="a-s"><input id="a-s" type="password" className="input" value={f.senha} onChange={(e) => setF({ ...f, senha: e.target.value })} autoComplete="current-password" /></Field>
         {err && <span className="err-msg">{err}</span>}
-        <button className="btn btn-primary">Entrar</button>
-        <p className="small muted">Demonstração: admin@locajett.com / admin123 (troque em Usuários). <Link to="/" style={{ color: 'var(--primary)' }}>← Voltar ao site</Link></p>
+        <button className="btn btn-primary" disabled={loading}>{loading ? 'Entrando...' : 'Entrar'}</button>
+        <p className="small muted">{getDB().remote ? 'Acesso restrito à equipe Loca Jett.' : 'Modo local (sem servidor).'} <Link to="/" style={{ color: 'var(--primary)' }}>← Voltar ao site</Link></p>
       </form>
     </div>
   )
@@ -39,7 +46,7 @@ export function AdminLayout() {
   const db = useDB()
   const [open, setOpen] = useState(false)
   const user = db.users.find((u) => u.id === db.session.adminId)
-  if (!user) return <AdminLogin />
+  if (!user || (db.remote && !adminToken())) return <AdminLogin />
   const unread = db.notifications.filter((n) => !n.lida).length
   return (
     <div className="app">
@@ -49,7 +56,7 @@ export function AdminLayout() {
         <nav aria-label="Admin">{MODS.filter(([k]) => can(user, k)).map(([k, l, i]) => <NavLink key={k} to={'/admin/' + k}><span>{i}</span>{l}{k === 'notificacoes' && unread > 0 && <span className="badge tone-warning" style={{ marginLeft: 'auto' }}>{unread}</span>}</NavLink>)}</nav>
         <div className="divider" />
         <div style={{ padding: '0 12px' }} className="small"><strong>{user.nome}</strong><div className="muted">{ROLES[user.papel].label}</div>
-          <div className="flex" style={{ marginTop: 10 }}><Link to="/" className="btn btn-ghost btn-sm">Ver site</Link><button className="btn btn-ghost btn-sm" onClick={() => setDB((d) => ({ session: { ...d.session, adminId: null } }))}>Sair</button></div></div>
+          <div className="flex" style={{ marginTop: 10 }}><Link to="/" className="btn btn-ghost btn-sm">Ver site</Link><button className="btn btn-ghost btn-sm" onClick={() => { adminLogout(); setDB((d) => ({ session: { ...d.session, adminId: null } })) }}>Sair</button></div></div>
       </aside>
       {open && <div className="overlay" style={{ zIndex: 65 }} onClick={() => setOpen(false)} />}
       <main className="main"><Guard user={user}><Outlet /></Guard></main>
@@ -65,7 +72,7 @@ const Top = ({ title, children }) => <div className="topbar"><h2 style={{ margin
 
 export function AdminModule() {
   const { mod = 'dashboard' } = useParams()
-  const C = { dashboard: Dashboard, 'jet-skis': JetSkisAdm, clientes: Clientes, reservas: Reservas, locacoes: Locacoes, calendario: Calendario, pagamentos: Pagamentos, financeiro: Financeiro, manutencao: Manutencao, contratos: Contratos, promocoes: Promocoes, fidelidade: Fidelidade, indicacoes: Indicacoes, avaliacoes: Avaliacoes, relatorios: Relatorios, notificacoes: Notificacoes, usuarios: Usuarios, configuracoes: Configuracoes }[mod]
+  const C = { dashboard: Dashboard, 'jet-skis': JetSkisAdm, clientes: Clientes, reservas: Reservas, locacoes: Locacoes, calendario: Calendario, venda: VendaAdm, bloqueios: Bloqueios, pagamentos: Pagamentos, financeiro: Financeiro, manutencao: Manutencao, contratos: Contratos, promocoes: Promocoes, fidelidade: Fidelidade, indicacoes: Indicacoes, avaliacoes: Avaliacoes, relatorios: Relatorios, notificacoes: Notificacoes, usuarios: Usuarios, configuracoes: Configuracoes }[mod]
   return C ? <C /> : <div className="card empty">Módulo não encontrado.</div>
 }
 
@@ -78,22 +85,22 @@ function Dashboard() {
   const y = t.slice(0, 4), m = t.slice(0, 7)
   const k = [
     ['Faturamento hoje', brl(sum(t))], ['Faturamento semana', brl(sum(dayISO(-6)))], ['Faturamento mês', brl(sum(m + '-01'))], ['Faturamento ano', brl(sum(y + '-01-01'))],
-    ['Reservas hoje', R.filter((r) => r.data === t).length], ['Reservas pendentes', R.filter((r) => r.status.startsWith('aguardando') || r.status === 'pagamento_pendente').length], ['Reservas confirmadas', R.filter((r) => ['confirmada', 'pagamento_confirmado'].includes(r.status)).length], ['Ticket médio', brl(R.length ? R.reduce((a, r) => a + r.total, 0) / R.length : 0)],
-    ['Jet Skis disponíveis', db.jetskis.filter((j) => j.status === 'disponivel').length], ['Jet Skis reservados hoje', new Set(R.filter((r) => r.data === t).map((r) => r.jetId)).size], ['Em manutenção', db.jetskis.filter((j) => j.status === 'manutencao').length], ['Clientes', db.clients.length + ` (+${db.clients.filter((c) => c.createdAt >= dayISO(-30)).length} em 30d)`],
+    ['Retiradas hoje', R.filter((r) => r.data === t).length], ['Reservas pendentes', R.filter((r) => r.status.startsWith('aguardando') || r.status === 'pagamento_pendente').length], ['Reservas confirmadas', R.filter((r) => ['confirmada', 'pagamento_confirmado'].includes(r.status)).length], ['Ticket médio', brl(R.length ? R.reduce((a, r) => a + r.total, 0) / R.length : 0)],
+    ['Jet Skis disponíveis', db.jetskis.filter((j) => j.status === 'disponivel').length], ['Jet Skis ocupados hoje', new Set(R.filter((r) => r.data <= t && (r.dataFim || r.data) >= t).map((r) => r.jetId)).size], ['Em manutenção', db.jetskis.filter((j) => j.status === 'manutencao').length], ['Clientes', db.clients.length + ` (+${db.clients.filter((c) => c.createdAt >= dayISO(-30)).length} em 30d)`],
   ]
   const last7 = Array.from({ length: 7 }, (_, i) => { const d = dayISO(i - 6); return { l: d.slice(8) + '/' + d.slice(5, 7), v: R.filter((r) => r.data === d && paid(r)).reduce((a, r) => a + r.total, 0) } })
   const resDay = Array.from({ length: 14 }, (_, i) => { const d = dayISO(i - 7); return { l: d.slice(8), v: R.filter((r) => r.data === d).length } })
-  const hours = {}; R.forEach((r) => (hours[r.hora] = (hours[r.hora] || 0) + 1))
+  const dows = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((l) => ({ l, v: 0 })); R.forEach((r) => { for (let i = 0; i < (r.diarias || 1); i++) dows[new Date(addDaysISO(r.data, i) + 'T12:00').getDay()].v++ })
   const topJets = db.jetskis.map((j) => ({ l: `${j.marca} ${j.modelo}`, v: R.filter((r) => r.jetId === j.id).length })).sort((a, b) => b.v - a.v)
-  const upcoming = R.filter((r) => r.data >= t).sort((a, b) => (a.data + a.hora).localeCompare(b.data + b.hora)).slice(0, 6)
+  const upcoming = R.filter((r) => r.data >= t).sort((a, b) => a.data.localeCompare(b.data)).slice(0, 6)
   return (
     <>
       <Top title="Dashboard">{db.settings.demo && <span className="badge tone-warning">Dados de exemplo</span>}</Top>
       <div className="grid g4" style={{ gap: 14 }}>{k.map(([l, v]) => <div key={l} className="card kpi"><span>{l}</span><strong>{v}</strong></div>)}</div>
       <div className="grid g2" style={{ marginTop: 20 }}>
         <div className="card"><h4>Faturamento — últimos 7 dias</h4><Bars data={last7} fmt={brl} /></div>
-        <div className="card"><h4>Reservas por dia (−7 a +6)</h4><Bars data={resDay} /></div>
-        <div className="card"><h4>Horários mais procurados</h4><HBars data={Object.entries(hours).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([l, v]) => ({ l, v }))} /></div>
+        <div className="card"><h4>Reservas por data de início (−7 a +6)</h4><Bars data={resDay} /></div>
+        <div className="card"><h4>Diárias por dia da semana</h4><HBars data={dows} /></div>
         <div className="card"><h4>Jet Skis mais reservados</h4><HBars data={topJets} /></div>
       </div>
       <div className="card" style={{ marginTop: 20 }}><h4>Próximas reservas</h4><ResTable rows={upcoming} /></div>
@@ -103,8 +110,8 @@ function Dashboard() {
 
 function ResTable({ rows, onOpen }) {
   const db = useDB()
-  return <div className="table-wrap"><table><thead><tr><th>Nº</th><th>Cliente</th><th>Jet Ski</th><th>Data</th><th>Hora</th><th>Dur.</th><th>Valor</th><th>Pagamento</th><th>Status</th>{onOpen && <th></th>}</tr></thead>
-    <tbody>{rows.length ? rows.map((r) => <tr key={r.id}><td><strong>{r.id}</strong></td><td>{cliName(db, r.clientId)}</td><td>{jetName(db, r.jetId)}</td><td>{fmtDate(r.data)}</td><td>{r.hora}</td><td>{r.duracao}h</td><td>{brl(r.total)}</td><td><span className={'badge tone-' + (paid(r) ? 'success' : 'warning')}>{paid(r) ? 'Pago' : r.pagamento === 'sinal' ? 'Sinal pago' : 'Pendente'}</span></td><td><Badge status={r.status} /></td>{onOpen && <td><button className="btn btn-ghost btn-sm" onClick={() => onOpen(r)}>Gerenciar</button></td>}</tr>) : <tr><td colSpan={10} className="empty">Nenhuma reserva.</td></tr>}</tbody></table></div>
+  return <div className="table-wrap"><table><thead><tr><th>Nº</th><th>Cliente</th><th>Jet Ski</th><th>Início</th><th>Diárias</th><th>Término</th><th>Total</th><th>Entrada</th><th>Pagamento</th><th>Status</th>{onOpen && <th></th>}</tr></thead>
+    <tbody>{rows.length ? rows.map((r) => <tr key={r.id}><td><strong>{r.id}</strong></td><td>{cliName(db, r.clientId)}</td><td>{jetName(db, r.jetId)}</td><td>{fmtDate(r.data)}</td><td>{r.diarias}</td><td>{fmtDate(r.dataFim)}</td><td>{brl(r.total)}</td><td>{brl(r.entrada)}</td><td><span className={'badge tone-' + (paid(r) ? 'success' : r.pagamento === 'sinal' ? 'accent' : 'warning')}>{paid(r) ? 'Pago' : r.pagamento === 'sinal' ? 'Entrada paga' : 'Pendente'} · {PAGAMENTO[r.formaPagamento] || '-'}</span></td><td><Badge status={r.status} /></td>{onOpen && <td><button className="btn btn-ghost btn-sm" onClick={() => onOpen(r)}>Gerenciar</button></td>}</tr>) : <tr><td colSpan={10} className="empty">Nenhuma reserva.</td></tr>}</tbody></table></div>
 }
 
 // ---------------- Reservas ----------------
@@ -135,38 +142,38 @@ function ReservaModal({ r, onClose }) {
   const cur = db.reservations.find((x) => x.id === r.id) || r
   const ed = e || cur
   const cli = db.clients.find((c) => c.id === cur.clientId) || {}
-  const slots = slotsFor(ed.jetId, ed.data, ed.duracao, cur.id)
+  const conflict = e ? rangeConflict(ed.jetId, ed.data, ed.diarias, cur.id) : null
   const setStatus = (status, extra = {}) => { upsert('reservations', { ...cur, status, ...extra }); notify('reserva', `${cur.id} → ${STATUS[status].label}`); toast('Status atualizado') }
   const saveEdit = () => {
-    if (!slots.includes(ed.hora)) return toast('Horário em conflito ou indisponível')
-    const j = db.jetskis.find((x) => x.id === ed.jetId)
-    const subtotal = jetPrice(j, ed.duracao)
-    upsert('reservations', { ...ed, subtotal, total: Math.max(0, subtotal + ed.adicionais - ed.desconto + ed.taxas) }); setE(null); toast('Reserva alterada')
+    if (!ed.data || conflict) return toast('Período em conflito com outra reserva ou bloqueio')
+    const jet = db.jetskis.find((x) => x.id === ed.jetId)
+    const p = calcPrice({ jet, diarias: ed.diarias, services: db.services.filter((x) => (ed.servicos || []).includes(x.id)), settings: db.settings, coupon: cur.desconto ? { tipo: 'fixo', valor: cur.desconto } : null })
+    upsert('reservations', { ...ed, dataFim: rangeEnd(ed.data, ed.diarias), subtotal: p.base, adicionais: p.adicionais, total: p.total, entrada: p.entrada, restante: p.restante }); setE(null); toast('Reserva alterada')
   }
   return (
     <Modal open onClose={() => { setE(null); onClose() }} title={`Reserva ${cur.id}`} width="820px">
-      <div className="flex wrap" style={{ marginBottom: 12 }}><Badge status={cur.status} /><span className={'badge tone-' + (paid(cur) ? 'success' : 'warning')}>{paid(cur) ? 'Pago' : 'Pagamento pendente'}</span></div>
+      <div className="flex wrap" style={{ marginBottom: 12 }}><Badge status={cur.status} /><span className={'badge tone-' + (paid(cur) ? 'success' : cur.pagamento === 'sinal' ? 'accent' : 'warning')}>{paid(cur) ? 'Pago total' : cur.pagamento === 'sinal' ? 'Entrada paga' : 'Entrada pendente'}</span></div>
       <div className="grid g2">
-        <div>{[['Cliente', cli.nome], ['E-mail', cli.email], ['Telefone', cli.telefone], ['Jet Ski', jetName(db, cur.jetId)], ['Data', fmtDate(cur.data) + ' ' + cur.hora], ['Duração', cur.duracao + 'h'], ['Local', db.locations.find((l) => l.id === cur.localId)?.nome], ['Pessoas', cur.pessoas], ['Obs.', cur.obs || '-']].map(([k, v]) => <div className="line" key={k}><span>{k}</span><strong>{v}</strong></div>)}</div>
-        <div>{[['Jet Ski', brl(cur.subtotal)], ['Adicionais', brl(cur.adicionais)], ['Desconto', '-' + brl(cur.desconto)], ['Taxas', brl(cur.taxas)], ['Caução', brl(cur.caucao)], ['Cupom', cur.cupom || '-']].map(([k, v]) => <div className="line" key={k}><span>{k}</span><strong>{v}</strong></div>)}<div className="total"><span>Total</span><span>{brl(cur.total)}</span></div></div>
+        <div>{[['Cliente', cli.nome], ['E-mail', cli.email], ['WhatsApp', cli.telefone], ['CPF', cli.cpf || '-'], ['Nascimento', fmtDate(cli.nascimento) || '-'], ['Jet Ski', jetName(db, cur.jetId)], ['Início', fmtDate(cur.data)], ['Diárias', cur.diarias], ['Término', fmtDate(cur.dataFim)], ['Obs.', cur.obs || '-']].map(([k, v]) => <div className="line" key={k}><span>{k}</span><strong>{v}</strong></div>)}</div>
+        <div>{[['Jet Ski', brl(cur.subtotal)], ['Adicionais', brl(cur.adicionais)], ['Desconto', '-' + brl(cur.desconto)], ['Cupom', cur.cupom || '-'], ['Forma de pagamento', PAGAMENTO[cur.formaPagamento] || '-'], [`Entrada (${cur.entradaPct ?? 50}%)`, brl(cur.entrada)], ['Restante', brl(cur.restante)]].map(([k, v]) => <div className="line" key={k}><span>{k}</span><strong>{v}</strong></div>)}<div className="total"><span>Total</span><span>{brl(cur.total)}</span></div></div>
       </div>
       <div className="divider" />
       <div className="flex wrap">
-        <button className="btn btn-primary btn-sm" onClick={() => setStatus('confirmada')}>✓ Confirmar</button>
-        <button className="btn btn-ghost btn-sm" onClick={() => setStatus('pagamento_confirmado', { pagamento: 'pago' })}>💳 Pagamento recebido</button>
-        <button className="btn btn-ghost btn-sm" onClick={() => setStatus('em_andamento')}>▶ Iniciar</button>
-        <button className="btn btn-ghost btn-sm" onClick={() => { setStatus('concluida'); const c = getDB().clients.find((x) => x.id === cur.clientId); if (c) upsert('clients', { ...c, pontos: (c.pontos || 0) + Math.round(cur.total) }) }}>🏁 Concluir (+pontos)</button>
-        <button className="btn btn-danger btn-sm" onClick={() => confirm('Cancelar reserva?') && setStatus('cancelada')}>Cancelar</button>
-        <a className="btn btn-wa btn-sm" target="_blank" rel="noreferrer" href={waLink(cli.whatsapp || cli.telefone, `Olá, ${cli.nome?.split(' ')[0]}! Aqui é a Loca Jett Oficial sobre sua reserva ${cur.id}.`)}>Abrir conversa no WhatsApp</a>
+        <button className="btn btn-primary btn-sm" onClick={() => setStatus('confirmada', { pagamento: cur.pagamento === 'pago' ? 'pago' : 'sinal' })}>✓ Entrada recebida — confirmar</button>
+        <button className="btn btn-ghost btn-sm" onClick={() => setStatus('pagamento_confirmado', { pagamento: 'pago' })}>💳 Pago total</button>
+        <button className="btn btn-ghost btn-sm" onClick={() => setStatus('em_andamento')}>▶ Retirado</button>
+        <button className="btn btn-ghost btn-sm" onClick={() => { setStatus('concluida'); const c = getDB().clients.find((x) => x.id === cur.clientId); if (c) upsert('clients', { ...c, pontos: (c.pontos || 0) + Math.round(cur.total) }) }}>🏁 Devolvido / concluir</button>
+        <button className="btn btn-danger btn-sm" onClick={() => confirm('Cancelar reserva? As datas serão liberadas.') && setStatus('cancelada')}>Cancelar</button>
+        <a className="btn btn-wa btn-sm" target="_blank" rel="noreferrer" href={waLink(cli.whatsapp || cli.telefone, `Olá, ${cli.nome?.split(' ')[0]}! Aqui é a Loca Jett Oficial sobre sua reserva ${cur.id} (${fmtDate(cur.data)}, ${diariasLabel(cur.diarias)}). Entrada: ${brl(cur.entrada)} via ${PAGAMENTO[cur.formaPagamento] || 'Pix'}.${cur.formaPagamento === 'pix' && db.settings.pixChave ? ' Chave Pix: ' + db.settings.pixChave : ''}${cur.formaPagamento === 'cartao' && db.settings.cartaoLink ? ' Link: ' + db.settings.cartaoLink : ''}`)}>Abrir WhatsApp do cliente</a>
         <button className="btn btn-ghost btn-sm" onClick={() => { if (!getDB().contracts.some((c) => c.reservaId === cur.id)) upsert('contracts', { reservaId: cur.id, clientId: cur.clientId, criado: new Date().toISOString(), status: 'aguardando' }); toast('Contrato gerado') }}>📄 Gerar contrato</button>
         <button className="btn btn-ghost btn-sm" onClick={() => setE({ ...cur })}>✏️ Alterar</button>
       </div>
-      {e && <div className="card" style={{ marginTop: 16 }}><h4>Alterar data / horário / Jet Ski</h4><div className="grid g2" style={{ gap: 12 }}>
+      {e && <div className="card" style={{ marginTop: 16 }}><h4>Alterar Jet Ski / data / diárias</h4><div className="grid g2" style={{ gap: 12 }}>
         <Field label="Jet Ski" id="e-j"><select id="e-j" className="input" value={ed.jetId} onChange={(x) => setE({ ...ed, jetId: x.target.value })}>{db.jetskis.map((j) => <option key={j.id} value={j.id}>{j.marca} {j.modelo}</option>)}</select></Field>
-        <Field label="Data" id="e-d"><input id="e-d" type="date" className="input" value={ed.data} onChange={(x) => setE({ ...ed, data: x.target.value })} /></Field>
-        <Field label="Duração" id="e-du"><select id="e-du" className="input" value={ed.duracao} onChange={(x) => setE({ ...ed, duracao: +x.target.value })}>{DURACOES.map((d) => <option key={d.h} value={d.h}>{d.label}</option>)}</select></Field>
-        <Field label="Horário" id="e-h"><select id="e-h" className="input" value={ed.hora} onChange={(x) => setE({ ...ed, hora: x.target.value })}><option value="">—</option>{slots.map((s) => <option key={s}>{s}</option>)}</select></Field>
-      </div><div className="flex" style={{ marginTop: 12 }}><button className="btn btn-primary btn-sm" onClick={saveEdit}>Salvar alteração</button><button className="btn btn-ghost btn-sm" onClick={() => setE(null)}>Cancelar</button></div></div>}
+        <Field label="Data de início" id="e-d"><input id="e-d" type="date" className="input" value={ed.data} onChange={(x) => setE({ ...ed, data: x.target.value })} /></Field>
+        <Field label="Diárias" id="e-du"><input id="e-du" type="number" min="1" className="input" value={ed.diarias} onChange={(x) => setE({ ...ed, diarias: Math.max(1, +x.target.value || 1) })} /></Field>
+        <Field label="Término" id="e-t"><div className="input">{ed.data ? fmtDate(rangeEnd(ed.data, ed.diarias)) : '—'}</div></Field>
+      </div>{conflict && <p className="err-msg">Conflito com {conflict.tipo === 'bloqueio' ? 'um bloqueio de datas' : 'a reserva ' + conflict.item.id}.</p>}<div className="flex" style={{ marginTop: 12 }}><button className="btn btn-primary btn-sm" onClick={saveEdit}>Salvar alteração</button><button className="btn btn-ghost btn-sm" onClick={() => setE(null)}>Cancelar</button></div></div>}
     </Modal>
   )
 }
@@ -185,14 +192,42 @@ function JetSkisAdm() {
   return (
     <>
       <Top title="Gestão de Jet Skis" />
-      <Crud table="jetskis" title="Frota" rows={db.jetskis} searchKeys={['marca', 'modelo', 'identificacao']}
-        newItem={{ status: 'disponivel', hue: Math.floor(Math.random() * 360), caracteristicas: '', regras: '', capacidade: 2 }}
-        cols={[{ l: 'ID', k: 'identificacao' }, { l: 'Jet Ski', r: (j) => <strong>{j.marca} {j.modelo}</strong> }, { l: 'Ano', k: 'ano' }, { l: 'Horas', k: 'horasUso' }, { l: 'Preço/h', r: (j) => brl(j.precoHora) }, { l: 'Local', r: (j) => db.locations.find((l) => l.id === j.localId)?.nome.split(' — ')[0] }, { l: 'Status', r: (j) => <JetBadge status={j.status} /> }]}
-        fields={[{ k: 'marca', l: 'Marca', req: true }, { k: 'modelo', l: 'Modelo', req: true }, { k: 'identificacao', l: 'Identificação' }, { k: 'ano', l: 'Ano', type: 'number' }, { k: 'categoria', l: 'Categoria' }, { k: 'potencia', l: 'Potência' }, { k: 'capacidade', l: 'Capacidade', type: 'number' }, { k: 'cor', l: 'Cor' }, { k: 'velMax', l: 'Velocidade máx.' }, { k: 'horasUso', l: 'Horas de uso', type: 'number' },
-          { k: 'precoHora', l: 'Preço por hora', type: 'number', req: true }, { k: 'precoPeriodo', l: 'Preço meio período (4h)', type: 'number' }, { k: 'precoDiaria', l: 'Preço diária', type: 'number' }, { k: 'caucao', l: 'Caução', type: 'number' },
-          { k: 'localId', l: 'Local', type: 'select', options: db.locations.map((l) => ({ v: l.id, l: l.nome })) }, { k: 'status', l: 'Status', type: 'select', options: opts(JET_STATUS) }, { k: 'hue', l: 'Cor da ilustração (0–360)', type: 'number' }, { k: 'documentacao', l: 'Documentação (validade)', type: 'date' },
-          { k: 'descricao', l: 'Descrição', type: 'textarea' }, { k: 'caracteristicas', l: 'Características', type: 'list' }, { k: 'regras', l: 'Regras', type: 'list' }]} />
-      <p className="small muted" style={{ marginTop: 12 }}>Upload de fotos reais: preparado na arquitetura (tabela jet_ski_images + storage). Ver SPEC.mdx.</p>
+      <Crud table="jetskis" title="Frota para locação" rows={db.jetskis} searchKeys={['marca', 'modelo', 'identificacao']}
+        newItem={{ status: 'disponivel', hue: Math.floor(Math.random() * 360), caracteristicas: '', regras: 'Locação somente por diária (mínimo 1 diária)\nIdade mínima de 18 anos\nUso obrigatório de colete', fotos: [], localId: 'l1', marca: 'Sea-Doo' }}
+        cols={[{ l: 'Foto', r: (j) => <div style={{ width: 54, height: 54, borderRadius: 8, overflow: 'hidden' }}><JetPhoto jet={j} /></div> }, { l: 'Jet Ski', r: (j) => <strong>{j.marca} {j.modelo}</strong> }, { l: 'Ano', k: 'ano' }, { l: 'Preço normal', r: (j) => brl(j.precoOriginal) }, { l: 'Diária atual', r: (j) => <strong>{brl(j.precoDiaria)}</strong> }, { l: 'Status', r: (j) => <JetBadge status={j.status} /> }]}
+        fields={[{ k: 'marca', l: 'Marca', req: true }, { k: 'modelo', l: 'Modelo', req: true }, { k: 'identificacao', l: 'Identificação interna' }, { k: 'ano', l: 'Ano' }, { k: 'categoria', l: 'Categoria' }, { k: 'potencia', l: 'Potência' }, { k: 'capacidade', l: 'Capacidade (pessoas)', type: 'number' }, { k: 'cor', l: 'Cor' },
+          { k: 'precoOriginal', l: 'Preço normal da diária (riscado)', type: 'number' }, { k: 'precoDiaria', l: 'Preço atual da diária', type: 'number', req: true }, { k: 'caucao', l: 'Caução (opcional)', type: 'number' }, { k: 'horasUso', l: 'Horas de uso', type: 'number' },
+          { k: 'localId', l: 'Local', type: 'select', options: db.locations.map((l) => ({ v: l.id, l: l.nome })) }, { k: 'status', l: 'Status', type: 'select', options: opts(JET_STATUS) }, { k: 'documentacao', l: 'Documentação (validade)', type: 'date' }, { k: 'hue', l: 'Cor da ilustração sem foto (0–360)', type: 'number' },
+          { k: 'fotos', l: 'Fotos', type: 'images' }, { k: 'descricao', l: 'Descrição', type: 'textarea' }, { k: 'caracteristicas', l: 'Características', type: 'list' }, { k: 'regras', l: 'Regras', type: 'list' }]} />
+      <p className="small muted" style={{ marginTop: 12 }}>A locação é sempre por diária. Para promoções, preencha o preço normal (aparece riscado) e o preço atual.</p>
+    </>
+  )
+}
+
+function VendaAdm() {
+  const db = useDB()
+  return (
+    <>
+      <Top title="Venda de Jet Skis"><Link to="/venda" className="btn btn-ghost btn-sm" target="_blank">Ver página pública</Link></Top>
+      <Crud table="sales" title="Jet Skis à venda" rows={db.sales || []} searchKeys={['marca', 'modelo']} newItem={{ status: 'disponivel', fotos: [], marca: 'Sea-Doo' }}
+        cols={[{ l: 'Foto', r: (x) => <div style={{ width: 54, height: 54, borderRadius: 8, overflow: 'hidden' }}><JetPhoto jet={x} /></div> }, { l: 'Modelo', r: (x) => <strong>{x.marca} {x.modelo}</strong> }, { l: 'Ano', k: 'ano' }, { l: 'Horas', k: 'horasUso' }, { l: 'Estado', k: 'estado' }, { l: 'Preço', r: (x) => (x.preco ? brl(x.preco) : 'Consulte') }, { l: 'Status', r: (x) => <Badge status={x.status || 'disponivel'} map={SALE_STATUS} /> }]}
+        fields={[{ k: 'marca', l: 'Marca' }, { k: 'modelo', l: 'Modelo', req: true }, { k: 'ano', l: 'Ano' }, { k: 'horasUso', l: 'Horas de uso', type: 'number' }, { k: 'estado', l: 'Estado de conservação', type: 'select', options: ['Novo', 'Seminovo', 'Excelente', 'Muito bom', 'Bom', 'Para reforma'].map((v) => ({ v, l: v })) }, { k: 'preco', l: 'Preço (vazio = sob consulta)', type: 'number' },
+          { k: 'status', l: 'Status', type: 'select', options: [...Object.entries(SALE_STATUS).map(([v, x]) => ({ v, l: x.label })), { v: 'oculto', l: 'Oculto do site' }] }, { k: 'fotos', l: 'Fotos', type: 'images' }, { k: 'descricao', l: 'Descrição', type: 'textarea' }, { k: 'info', l: 'Informações adicionais', type: 'textarea' }]} />
+      <p className="small muted" style={{ marginTop: 12 }}>O botão "Tenho interesse" leva o cliente ao WhatsApp da Loca Jett com o modelo já identificado.</p>
+    </>
+  )
+}
+
+function Bloqueios() {
+  const db = useDB()
+  const jets = [{ v: '*', l: 'Todos os Jet Skis' }, ...db.jetskis.map((j) => ({ v: j.id, l: `${j.marca} ${j.modelo}` }))]
+  return (
+    <>
+      <Top title="Bloquear datas" />
+      <Crud table="bloqueios" title="Datas bloqueadas para reserva" rows={[...(db.bloqueios || [])].sort((a, b) => (a.inicio || '').localeCompare(b.inicio || ''))} newItem={{ jetId: '*', inicio: today(), fim: today() }}
+        cols={[{ l: 'Jet Ski', r: (b) => jets.find((j) => j.v === b.jetId)?.l || '-' }, { l: 'De', r: (b) => fmtDate(b.inicio) }, { l: 'Até', r: (b) => fmtDate(b.fim || b.inicio) }, { l: 'Motivo', k: 'motivo' }]}
+        fields={[{ k: 'jetId', l: 'Jet Ski', type: 'select', req: true, options: jets }, { k: 'inicio', l: 'De', type: 'date', req: true }, { k: 'fim', l: 'Até (inclusive)', type: 'date', req: true }, { k: 'motivo', l: 'Motivo (manutenção, uso próprio, evento...)' }]} />
+      <p className="small muted" style={{ marginTop: 12 }}>Datas bloqueadas aparecem como indisponíveis no calendário do site e não podem ser reservadas.</p>
     </>
   )
 }
@@ -232,17 +267,29 @@ function Locacoes() {
 // ---------------- Calendário ----------------
 function Calendario() {
   const db = useDB()
-  const [d, setD] = useState(today())
-  const { abertura, fechamento } = db.settings
-  const hours = Array.from({ length: fechamento - abertura }, (_, i) => abertura + i)
-  const at = (jetId, h) => db.reservations.find((r) => r.jetId === jetId && r.data === d && valid(r) && (() => { const [rh, rm] = r.hora.split(':').map(Number); const s = rh + rm / 60; return h + 1 > s && h < s + r.duracao })())
+  const [ym, setYm] = useState(today().slice(0, 7))
+  const [y, m] = ym.split('-').map(Number)
+  const days = new Date(y, m, 0).getDate()
+  const dates = Array.from({ length: days }, (_, i) => `${ym}-${String(i + 1).padStart(2, '0')}`)
+  const move = (k) => { const d = new Date(y, m - 1 + k, 1); setYm(localISO(d).slice(0, 7)) }
+  const cell = (j, d) => {
+    if (j.status === 'manutencao') return { bg: 'rgba(255,92,122,.18)', t: '🔧', tip: 'Manutenção' }
+    const r = db.reservations.find((x) => x.jetId === j.id && valid(x) && x.data <= d && (x.dataFim || x.data) >= d)
+    if (r) return { bg: r.status === 'em_andamento' ? 'rgba(0,180,255,.3)' : ['confirmada', 'pagamento_confirmado'].includes(r.status) ? 'rgba(34,211,160,.25)' : 'rgba(255,181,71,.25)', t: r.data === d ? r.id.slice(3, 6) : '•', tip: `${r.id} — ${cliName(db, r.clientId)} — ${STATUS[r.status]?.label}`, r }
+    const b = (db.bloqueios || []).find((x) => (x.jetId === '*' || x.jetId === j.id) && x.inicio <= d && (x.fim || x.inicio) >= d)
+    if (b) return { bg: 'rgba(120,144,170,.25)', t: '⛔', tip: 'Bloqueado: ' + (b.motivo || '') }
+    return { bg: 'transparent', t: '', tip: 'Livre' }
+  }
+  const [sel, setSel] = useState(null)
   return (
     <>
-      <Top title="Calendário de ocupação"><button className="btn btn-ghost btn-sm" onClick={() => { const x = new Date(d + 'T12:00'); x.setDate(x.getDate() - 1); setD(localISO(x)) }}>‹</button><input type="date" className="input" style={{ width: 'auto' }} value={d} onChange={(e) => setD(e.target.value)} aria-label="Data" /><button className="btn btn-ghost btn-sm" onClick={() => { const x = new Date(d + 'T12:00'); x.setDate(x.getDate() + 1); setD(localISO(x)) }}>›</button></Top>
-      <div className="table-wrap"><table><thead><tr><th>Jet Ski</th>{hours.map((h) => <th key={h}>{h}h</th>)}</tr></thead><tbody>
-        {db.jetskis.map((j) => <tr key={j.id}><td><strong>{j.identificacao}</strong> <small className="muted">{j.modelo}</small></td>{hours.map((h) => { const r = at(j.id, h); const m = j.status === 'manutencao'; return <td key={h} title={r ? `${r.id} — ${cliName(db, r.clientId)}` : ''} style={{ background: m ? 'rgba(255,92,122,.15)' : r ? (r.status === 'em_andamento' ? 'rgba(0,180,255,.25)' : 'rgba(255,181,71,.2)') : 'rgba(34,211,160,.06)', fontSize: '.72rem' }}>{m ? '🔧' : r ? r.id.slice(3) : ''}</td> })}</tr>)}
+      <Top title="Calendário de ocupação"><button className="btn btn-ghost btn-sm" onClick={() => move(-1)} aria-label="Mês anterior">‹</button><strong style={{ textTransform: 'capitalize', minWidth: 140, textAlign: 'center' }}>{new Date(y, m - 1, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}</strong><button className="btn btn-ghost btn-sm" onClick={() => move(1)} aria-label="Próximo mês">›</button></Top>
+      <div className="table-wrap"><table style={{ fontSize: '.72rem' }}><thead><tr><th style={{ position: 'sticky', left: 0, background: 'var(--background-secondary)' }}>Jet Ski</th>{dates.map((d) => <th key={d} style={{ padding: '8px 4px', textAlign: 'center', color: d === today() ? 'var(--primary)' : undefined }}>{d.slice(8)}<br />{['D', 'S', 'T', 'Q', 'Q', 'S', 'S'][new Date(d + 'T12:00').getDay()]}</th>)}</tr></thead><tbody>
+        {db.jetskis.map((j) => <tr key={j.id}><td style={{ position: 'sticky', left: 0, background: 'var(--background-secondary)' }}><strong>{j.modelo}</strong></td>{dates.map((d) => { const c = cell(j, d); return <td key={d} title={`${fmtDate(d)} — ${c.tip}`} onClick={() => c.r && setSel(c.r)} style={{ background: c.bg, padding: '8px 2px', textAlign: 'center', cursor: c.r ? 'pointer' : 'default', borderLeft: '1px solid var(--border)' }}>{c.t}</td> })}</tr>)}
       </tbody></table></div>
-      <div className="cal-legend"><span><i style={{ background: 'var(--success)' }} />Disponível</span><span><i style={{ background: 'var(--warning)' }} />Reservado</span><span><i style={{ background: 'var(--primary)' }} />Em uso</span><span><i style={{ background: 'var(--danger)' }} />Manutenção</span></div>
+      <div className="cal-legend"><span><i style={{ background: 'var(--warning)' }} />Aguardando entrada</span><span><i style={{ background: 'var(--success)' }} />Confirmada</span><span><i style={{ background: 'var(--primary)' }} />Em uso</span><span><i style={{ background: 'var(--danger)' }} />Manutenção</span><span><i style={{ background: 'var(--text-muted)' }} />Bloqueado (⛔)</span></div>
+      <p className="small muted">Clique numa reserva para gerenciar. Para bloquear datas use o menu <Link to="/admin/bloqueios" style={{ color: 'var(--primary)' }}>Bloquear datas</Link>.</p>
+      <ReservaModal r={sel} onClose={() => setSel(null)} />
     </>
   )
 }
@@ -281,14 +328,14 @@ function Financeiro() {
     const fat = rs.filter(paid).reduce((a, r) => a + r.total, 0)
     const desp = db.expenses.filter((e) => e.jetId === j.id).reduce((a, e) => a + e.valor, 0)
     const man = db.maintenance.filter((m) => m.jetId === j.id).reduce((a, m) => a + (m.custo || 0), 0)
-    const horas = rs.reduce((a, r) => a + r.duracao, 0)
-    return { j, n: rs.length, horas, fat, desp, man, lucro: fat - desp - man, ocup: Math.round((horas / (30 * (db.settings.fechamento - db.settings.abertura))) * 100) }
+    const horas = rs.reduce((a, r) => a + (r.diarias || 1), 0)
+    return { j, n: rs.length, horas, fat, desp, man, lucro: fat - desp - man, ocup: Math.round((rs.filter((r) => r.data >= dayISO(-30) && r.data <= today()).reduce((a, r) => a + (r.diarias || 1), 0) / 30) * 100) }
   }).sort((a, b) => b.lucro - a.lucro)
   return (
     <>
       <Top title="Financeiro">{[['hoje', 'Hoje'], ['semana', 'Semana'], ['mes', 'Mês'], ['ano', 'Ano'], ['custom', 'Período']].map(([k, l]) => <button key={k} className={'chip ' + (p === k ? 'on' : '')} onClick={() => setP(k)}>{l}</button>)}{p === 'custom' && <><input type="date" className="input" style={{ width: 'auto' }} value={range.de} onChange={(e) => setRange({ ...range, de: e.target.value })} aria-label="De" /><input type="date" className="input" style={{ width: 'auto' }} value={range.ate} onChange={(e) => setRange({ ...range, ate: e.target.value })} aria-label="Até" /></>}</Top>
       <div className="grid g4" style={{ gap: 14 }}>{[['Receitas', receita], ['Despesas', despesas], ['Lucro estimado', receita - despesas], ['A receber', R.filter((r) => !paid(r)).reduce((a, r) => a + r.total, 0)], ['Faturamento bruto', R.reduce((a, r) => a + r.total, 0)], ['Cauções', R.reduce((a, r) => a + r.caucao, 0)], ['Descontos', R.reduce((a, r) => a + r.desconto, 0)], ['Taxas', R.reduce((a, r) => a + r.taxas, 0)]].map(([l, v]) => <div key={l} className="card kpi"><span>{l}</span><strong>{brl(v)}</strong></div>)}</div>
-      <div className="card" style={{ marginTop: 20 }}><h4>Rentabilidade por Jet Ski — ranking</h4><div className="table-wrap"><table><thead><tr><th>#</th><th>Jet Ski</th><th>Reservas</th><th>Horas</th><th>Faturamento</th><th>Despesas</th><th>Manutenção</th><th>Lucro est.</th><th>Ocupação (30d)</th></tr></thead><tbody>{rent.map((x, i) => <tr key={x.j.id}><td>{i + 1}º</td><td>{x.j.marca} {x.j.modelo}</td><td>{x.n}</td><td>{x.horas}h</td><td>{brl(x.fat)}</td><td>{brl(x.desp)}</td><td>{brl(x.man)}</td><td><strong>{brl(x.lucro)}</strong></td><td>{x.ocup}%</td></tr>)}</tbody></table></div></div>
+      <div className="card" style={{ marginTop: 20 }}><h4>Rentabilidade por Jet Ski — ranking</h4><div className="table-wrap"><table><thead><tr><th>#</th><th>Jet Ski</th><th>Reservas</th><th>Diárias</th><th>Faturamento</th><th>Despesas</th><th>Manutenção</th><th>Lucro est.</th><th>Ocupação (30d)</th></tr></thead><tbody>{rent.map((x, i) => <tr key={x.j.id}><td>{i + 1}º</td><td>{x.j.marca} {x.j.modelo}</td><td>{x.n}</td><td>{x.horas}</td><td>{brl(x.fat)}</td><td>{brl(x.desp)}</td><td>{brl(x.man)}</td><td><strong>{brl(x.lucro)}</strong></td><td>{x.ocup}%</td></tr>)}</tbody></table></div></div>
       <div style={{ marginTop: 20 }}><Crud table="expenses" title="Despesas" rows={db.expenses} newItem={{ data: today() }} cols={[{ l: 'Data', r: (e) => fmtDate(e.data) }, { l: 'Descrição', k: 'descricao' }, { l: 'Jet Ski', r: (e) => jetName(db, e.jetId) }, { l: 'Valor', r: (e) => brl(e.valor) }]} fields={[{ k: 'descricao', l: 'Descrição', req: true }, { k: 'valor', l: 'Valor', type: 'number', req: true }, { k: 'data', l: 'Data', type: 'date' }, { k: 'jetId', l: 'Jet Ski (opcional)', type: 'select', options: db.jetskis.map((j) => ({ v: j.id, l: `${j.marca} ${j.modelo}` })) }]} /></div>
     </>
   )
@@ -336,7 +383,7 @@ function Promocoes() {
       <Top title="Cupons e promoções" />
       <Crud table="coupons" title="Cupons" rows={db.coupons} newItem={{ tipo: 'percentual', ativo: true, usos: 0, jets: [] }}
         cols={[{ l: 'Código', r: (c) => <strong>{c.codigo}</strong> }, { l: 'Desconto', r: (c) => (c.tipo === 'percentual' ? c.valor + '%' : brl(c.valor)) }, { l: 'Validade', r: (c) => fmtDate(c.validade) }, { l: 'Usos', r: (c) => `${c.usos}/${c.limite || '∞'}` }, { l: 'Mínimo', r: (c) => brl(c.minimo) }, { l: 'Jet Skis', r: (c) => (c.jets?.length ? c.jets.join(', ') : c.jetsTxt || 'Todos') }, { l: 'Ativo', r: (c) => (c.ativo ? '✅' : '—') }]}
-        fields={[{ k: 'codigo', l: 'Código', req: true }, { k: 'tipo', l: 'Tipo', type: 'select', options: [{ v: 'percentual', l: 'Percentual (%)' }, { v: 'fixo', l: 'Valor fixo (R$)' }] }, { k: 'valor', l: 'Desconto', type: 'number', req: true }, { k: 'validade', l: 'Validade', type: 'date' }, { k: 'limite', l: 'Limite de usos', type: 'number' }, { k: 'minimo', l: 'Valor mínimo', type: 'number' }, { k: 'jetsTxt', l: 'IDs de Jet Skis participantes (vazio = todos, ex: j1,j3)' }, { k: 'ativo', l: 'Ativo', type: 'checkbox' }]} />
+        fields={[{ k: 'codigo', l: 'Código', req: true }, { k: 'tipo', l: 'Tipo', type: 'select', options: [{ v: 'percentual', l: 'Percentual (%)' }, { v: 'fixo', l: 'Valor fixo (R$)' }] }, { k: 'valor', l: 'Desconto', type: 'number', req: true }, { k: 'validade', l: 'Validade', type: 'date' }, { k: 'limite', l: 'Limite de usos', type: 'number' }, { k: 'minimo', l: 'Valor mínimo', type: 'number' }, { k: 'jetsTxt', l: 'IDs de Jet Skis participantes (vazio = todos, ex: gti-170,rxt-x-300)' }, { k: 'validadeDias', l: 'Validade informada (dias após recebimento)', type: 'number' }, { k: 'imagem', l: 'Imagem do cupom (link) — aparece na página inicial' }, { k: 'ativo', l: 'Ativo', type: 'checkbox' }]} />
       <p className="small muted" style={{ marginTop: 8 }}>Dica: campanhas e preços especiais podem ser feitos ajustando preços do Jet Ski e criando cupons por período.</p>
     </>
   )
@@ -389,7 +436,7 @@ function Relatorios() {
   const ativos = db.clients.filter((c) => R.some((r) => r.clientId === c.id && r.data >= dayISO(-90))).length
   const cancel = R.length ? Math.round((R.filter((r) => r.status === 'cancelada').length / R.length) * 100) : 0
   const exportCSV = () => {
-    const rows = [['numero', 'cliente', 'jetski', 'data', 'hora', 'duracao', 'total', 'pagamento', 'status'], ...R.map((r) => [r.id, cliName(db, r.clientId), jetName(db, r.jetId), r.data, r.hora, r.duracao, r.total, r.pagamento, r.status])]
+    const rows = [['numero', 'cliente', 'jetski', 'inicio', 'diarias', 'termino', 'total', 'entrada', 'forma_pagamento', 'pagamento', 'status'], ...R.map((r) => [r.id, cliName(db, r.clientId), jetName(db, r.jetId), r.data, r.diarias, r.dataFim, r.total, r.entrada, r.formaPagamento, r.pagamento, r.status])]
     const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([rows.map((x) => x.map((v) => `"${v}"`).join(';')).join('\n')], { type: 'text/csv' })); a.download = 'reservas-locajett.csv'; a.click()
   }
   return (
@@ -431,23 +478,52 @@ function Usuarios() {
 }
 
 // ---------------- Configurações ----------------
+function SF({ s, setS, k, l, type = 'text', ph, area }) {
+  return <Field label={l} id={'s-' + k}>{area ? <textarea id={'s-' + k} rows={2} className="input" placeholder={ph} value={s[k] ?? ''} onChange={(e) => setS({ ...s, [k]: e.target.value })} /> : <input id={'s-' + k} type={type} className="input" placeholder={ph} value={s[k] ?? ''} onChange={(e) => setS({ ...s, [k]: e.target.value })} />}</Field>
+}
 function Configuracoes() {
   const db = useDB()
   const [s, setS] = useState(db.settings)
+  const [mail, setMail] = useState('')
+  const save = (e) => { e.preventDefault(); setDB((d) => ({ settings: { ...d.settings, ...s, whatsapp: String(s.whatsapp || '').replace(/\D/g, ''), idadeMinima: +s.idadeMinima || 18, entradaPct: +s.entradaPct || 50, diariasMax: +s.diariasMax || 15, taxa: +s.taxa || 0 } })); toast('Configurações salvas') }
+  const testMail = async () => {
+    setMail('Enviando...')
+    try { const r = await fetch('/api/admin', { method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer ' + adminToken() }, body: JSON.stringify({ action: 'testmail' }) }).then((x) => x.json()); setMail(r.sent ? '✅ E-mail de teste enviado' : '⚠️ Não enviado: ' + (r.reason || r.error || '')) } catch (e) { setMail('⚠️ ' + e.message) }
+  }
   return (
     <>
-      <Top title="Configurações" />
-      <form className="card grid g2" style={{ gap: 14 }} onSubmit={(e) => { e.preventDefault(); setDB((d) => ({ settings: { ...d.settings, ...s, abertura: +s.abertura, fechamento: +s.fechamento, taxa: +s.taxa } })); toast('Configurações salvas') }}>
-        <Field label="WhatsApp da empresa (com DDI, só números)" id="s-w"><input id="s-w" className="input" placeholder="[INSERIR NÚMERO] ex: 5562900000000" value={s.whatsapp} onChange={(e) => setS({ ...s, whatsapp: e.target.value.replace(/\D/g, '') })} /></Field>
-        <Field label="Taxa fixa por reserva (R$)" id="s-t"><input id="s-t" type="number" className="input" value={s.taxa} onChange={(e) => setS({ ...s, taxa: e.target.value })} /></Field>
-        <Field label="Abertura (hora)" id="s-a"><input id="s-a" type="number" min="0" max="23" className="input" value={s.abertura} onChange={(e) => setS({ ...s, abertura: e.target.value })} /></Field>
-        <Field label="Fechamento (hora)" id="s-f"><input id="s-f" type="number" min="1" max="24" className="input" value={s.fechamento} onChange={(e) => setS({ ...s, fechamento: e.target.value })} /></Field>
-        <div style={{ gridColumn: '1/-1' }}><button className="btn btn-primary">Salvar</button> <span className="small muted">Para valer para todos os visitantes, defina também o WhatsApp em <code>src/config.js</code> (ou conecte o backend — ver SPEC.mdx).</span></div>
+      <Top title="Configurações"><span className={'badge tone-' + (db.remote ? 'success' : 'warning')}>{db.remote ? 'Conectado ao servidor — alterações valem para todos' : 'Modo local (sem servidor)'}</span></Top>
+      <form className="stack" onSubmit={save}>
+        <div className="card grid g2" style={{ gap: 14 }}><h4 style={{ gridColumn: '1/-1', margin: 0 }}>Contato</h4>
+          <SF s={s} setS={setS} k="whatsapp" l="WhatsApp (com DDI, só números)" ph="5562981047747" /><SF s={s} setS={setS} k="telefone" l="Telefone exibido" ph="(62) 98104-7747" />
+          <SF s={s} setS={setS} k="instagram" l="Instagram" ph="@locajetoficial" /><SF s={s} setS={setS} k="instagramUrl" l="Link do Instagram" />
+          <SF s={s} setS={setS} k="endereco" l="Endereço" ph="[INSERIR ENDEREÇO]" /><SF s={s} setS={setS} k="cidade" l="Cidade" />
+          <SF s={s} setS={setS} k="mapsUrl" l="Link do Google Maps" /><SF s={s} setS={setS} k="diasFuncionamento" l="Dias de funcionamento" ph="Ex.: todos os dias" />
+          <SF s={s} setS={setS} k="horarioRetirada" l="Horário de retirada" ph="Ex.: 8h" /><SF s={s} setS={setS} k="horarioDevolucao" l="Horário de devolução" ph="Ex.: 18h" />
+        </div>
+        <div className="card grid g2" style={{ gap: 14 }}><h4 style={{ gridColumn: '1/-1', margin: 0 }}>Notificações por e-mail</h4>
+          <SF s={s} setS={setS} k="adminEmail" l="E-mail do administrador (recebe as novas reservas)" type="email" ph="dono@exemplo.com" />
+          <div className="field"><label>Teste</label><div className="flex wrap"><button type="button" className="btn btn-ghost btn-sm" onClick={testMail} disabled={!db.remote}>Enviar e-mail de teste</button><small>{mail}</small></div></div>
+          <small className="muted" style={{ gridColumn: '1/-1' }}>Salve antes de testar. O envio usa o serviço Resend (variável RESEND_API_KEY na Vercel) — ver SPEC.mdx.</small>
+        </div>
+        <div className="card grid g2" style={{ gap: 14 }}><h4 style={{ gridColumn: '1/-1', margin: 0 }}>Pagamento</h4>
+          <SF s={s} setS={setS} k="entradaPct" l="Entrada para confirmar (%)" type="number" /><SF s={s} setS={setS} k="pixChave" l="Chave Pix" ph="[INSERIR CHAVE PIX]" />
+          <SF s={s} setS={setS} k="cartaoPlataforma" l="Plataforma de cartão" ph="Ex.: Mercado Pago, InfinitePay..." /><SF s={s} setS={setS} k="cartaoLink" l="Link de pagamento no cartão" ph="https://..." />
+          <SF s={s} setS={setS} k="taxa" l="Taxa fixa por reserva (R$)" type="number" />
+        </div>
+        <div className="card grid g2" style={{ gap: 14 }}><h4 style={{ gridColumn: '1/-1', margin: 0 }}>Regras da locação</h4>
+          <SF s={s} setS={setS} k="idadeMinima" l="Idade mínima" type="number" /><SF s={s} setS={setS} k="diariasMax" l="Máximo de diárias por reserva" type="number" />
+          <label className="flex small" style={{ gridColumn: '1/-1' }}><input type="checkbox" checked={!!s.exigeHabilitacao} onChange={(e) => setS({ ...s, exigeHabilitacao: e.target.checked })} /> Exibir/exigir aviso de habilitação de Motonauta</label>
+          <div style={{ gridColumn: '1/-1' }}><SF s={s} setS={setS} k="textoHabilitacao" l="Texto sobre habilitação" area /></div>
+          <SF s={s} setS={setS} k="documentos" l="Documentos necessários" area /><SF s={s} setS={setS} k="seguranca" l="Regras de segurança" area />
+          <SF s={s} setS={setS} k="cancelamento" l="Regras de cancelamento" area ph="[A DEFINIR]" /><SF s={s} setS={setS} k="chuva" l="Política para chuva / mau tempo" area ph="[A DEFINIR]" />
+        </div>
+        <div><button className="btn btn-primary">Salvar configurações</button></div>
       </form>
-      <div style={{ marginTop: 20 }}><Crud table="locations" title="Locais / pontos de embarque" rows={db.locations} newItem={{ ativo: true, regiao: 'Centro' }} cols={[{ l: 'Nome', k: 'nome' }, { l: 'Região', k: 'regiao' }, { l: 'Ativo', r: (l) => (l.ativo ? '✅' : '—') }]} fields={[{ k: 'nome', l: 'Nome', req: true }, { k: 'regiao', l: 'Região', type: 'select', options: ['Norte', 'Sul', 'Leste', 'Oeste', 'Centro'].map((v) => ({ v, l: v })) }, { k: 'descricao', l: 'Endereço / ponto de encontro', type: 'textarea' }, { k: 'ativo', l: 'Ativo', type: 'checkbox' }]} /></div>
+      <div style={{ marginTop: 20 }}><Crud table="locations" title="Locais / pontos de retirada" rows={db.locations} newItem={{ ativo: true, regiao: 'Centro' }} cols={[{ l: 'Nome', k: 'nome' }, { l: 'Região', k: 'regiao' }, { l: 'Ativo', r: (l) => (l.ativo ? '✅' : '—') }]} fields={[{ k: 'nome', l: 'Nome', req: true }, { k: 'regiao', l: 'Região', type: 'select', options: ['Norte', 'Sul', 'Leste', 'Oeste', 'Centro'].map((v) => ({ v, l: v })) }, { k: 'descricao', l: 'Endereço / ponto de encontro', type: 'textarea' }, { k: 'ativo', l: 'Ativo', type: 'checkbox' }]} /></div>
       <div style={{ marginTop: 20 }}><Crud table="experiences" title="Experiências" rows={db.experiences} newItem={{ ativo: true, preco: 0, icon: '✨' }} cols={[{ l: '', k: 'icon' }, { l: 'Nome', k: 'nome' }, { l: 'Preço', r: (e) => brl(e.preco) }, { l: 'Ativo', r: (e) => (e.ativo ? '✅' : '—') }]} fields={[{ k: 'nome', l: 'Nome', req: true }, { k: 'icon', l: 'Ícone (emoji)' }, { k: 'preco', l: 'Preço adicional', type: 'number' }, { k: 'ativo', l: 'Ativo', type: 'checkbox' }, { k: 'descricao', l: 'Descrição', type: 'textarea' }]} /></div>
-      <div style={{ marginTop: 20 }}><Crud table="services" title="Serviços adicionais" rows={db.services} newItem={{ ativo: true, icon: '✨' }} cols={[{ l: '', k: 'icon' }, { l: 'Nome', k: 'nome' }, { l: 'Preço', r: (e) => brl(e.preco) }, { l: 'Ativo', r: (e) => (e.ativo ? '✅' : '—') }]} fields={[{ k: 'nome', l: 'Nome', req: true }, { k: 'icon', l: 'Ícone (emoji)' }, { k: 'preco', l: 'Preço', type: 'number', req: true }, { k: 'ativo', l: 'Ativo', type: 'checkbox' }, { k: 'descricao', l: 'Descrição', type: 'textarea' }]} /></div>
-      <div className="card" style={{ marginTop: 20 }}><h4>Dados de demonstração</h4><p className="small">Remova clientes, reservas e avaliações de exemplo antes de começar a operar.</p><div className="flex wrap"><button className="btn btn-ghost btn-sm" onClick={() => confirm('Remover todos os dados de exemplo?') && (clearExamples(), toast('Dados de exemplo removidos'))}>Limpar dados de exemplo</button><button className="btn btn-danger btn-sm" onClick={() => confirm('Restaurar tudo para o padrão?') && resetDB()}>Restaurar padrão</button></div></div>
+      <div style={{ marginTop: 20 }}><Crud table="services" title="Serviços adicionais (ative quando tiver valores)" rows={db.services} newItem={{ ativo: true, icon: '✨' }} cols={[{ l: '', k: 'icon' }, { l: 'Nome', k: 'nome' }, { l: 'Preço', r: (e) => brl(e.preco) }, { l: 'Ativo', r: (e) => (e.ativo ? '✅' : '—') }]} fields={[{ k: 'nome', l: 'Nome', req: true }, { k: 'icon', l: 'Ícone (emoji)' }, { k: 'preco', l: 'Preço', type: 'number', req: true }, { k: 'ativo', l: 'Ativo', type: 'checkbox' }, { k: 'descricao', l: 'Descrição', type: 'textarea' }]} /></div>
+      <div className="card" style={{ marginTop: 20 }}><h4>Recarregar</h4><p className="small">Busca de novo os dados mais recentes do servidor.</p><div className="flex wrap"><button className="btn btn-ghost btn-sm" onClick={() => adminPull().then(() => toast('Dados atualizados'))} disabled={!db.remote}>Recarregar do servidor</button></div></div>
     </>
   )
 }

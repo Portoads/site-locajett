@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { upsert, remove } from '../../store'
+import { upsert, remove, compressImage } from '../../store'
 import { Modal, Field, toast } from '../../components/ui'
 
 export function Bars({ data, fmt = (v) => v, height = 180 }) {
@@ -53,10 +53,11 @@ export function Crud({ table, rows, cols, fields, title, newItem = {}, actions, 
       <Modal open={!!edit} onClose={() => setEdit(null)} title={edit?.id ? 'Editar' : 'Novo registro'}>
         {edit && <form onSubmit={save} className="grid g2" style={{ gap: 14 }}>
           {fields.map((f) => (
-            <div key={f.k} style={f.type === 'textarea' || f.type === 'list' ? { gridColumn: '1/-1' } : null}>
+            <div key={f.k} style={['textarea', 'list', 'images'].includes(f.type) ? { gridColumn: '1/-1' } : null}>
               <Field label={f.l + (f.req ? ' *' : '')} id={'cf-' + f.k}>
                 {f.type === 'select' ? <select id={'cf-' + f.k} className="input" value={edit[f.k] ?? ''} onChange={(e) => setEdit({ ...edit, [f.k]: e.target.value })}><option value="">—</option>{f.options.map((o) => <option key={o.v} value={o.v}>{o.l}</option>)}</select>
                   : f.type === 'textarea' || f.type === 'list' ? <textarea id={'cf-' + f.k} rows={f.type === 'list' ? 4 : 3} className="input" placeholder={f.type === 'list' ? 'Um item por linha' : ''} value={edit[f.k] ?? ''} onChange={(e) => setEdit({ ...edit, [f.k]: e.target.value })} />
+                  : f.type === 'images' ? <ImagesField value={edit[f.k] || []} onChange={(v) => setEdit({ ...edit, [f.k]: v })} />
                   : f.type === 'checkbox' ? <input id={'cf-' + f.k} type="checkbox" checked={!!edit[f.k]} onChange={(e) => setEdit({ ...edit, [f.k]: e.target.checked })} />
                   : <input id={'cf-' + f.k} type={f.type || 'text'} className="input" value={edit[f.k] ?? ''} onChange={(e) => setEdit({ ...edit, [f.k]: e.target.value })} />}
               </Field>
@@ -65,6 +66,38 @@ export function Crud({ table, rows, cols, fields, title, newItem = {}, actions, 
           <div style={{ gridColumn: '1/-1' }} className="flex"><button className="btn btn-primary">Salvar</button><button type="button" className="btn btn-ghost" onClick={() => setEdit(null)}>Cancelar</button></div>
         </form>}
       </Modal>
+    </div>
+  )
+}
+
+export function ImagesField({ value, onChange }) {
+  const [url, setUrl] = useState('')
+  const [busy, setBusy] = useState(false)
+  const add = async (files) => {
+    setBusy(true)
+    try { const out = []; for (const f of files) out.push(await compressImage(f)); onChange([...value, ...out]) } catch { toast('Não foi possível ler a imagem') }
+    setBusy(false)
+  }
+  const move = (i, d) => { const v = [...value]; const [x] = v.splice(i, 1); v.splice(Math.max(0, Math.min(v.length, i + d)), 0, x); onChange(v) }
+  return (
+    <div className="stack">
+      <div className="flex wrap">{value.map((src, i) => (
+        <div key={i} style={{ position: 'relative', width: 96, height: 96, borderRadius: 10, overflow: 'hidden', border: '1px solid var(--border)' }}>
+          <img src={src} alt={`Foto ${i + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          <div style={{ position: 'absolute', inset: 'auto 0 0 0', display: 'flex', justifyContent: 'space-between', background: 'rgba(0,0,0,.6)' }}>
+            <button type="button" onClick={() => move(i, -1)} aria-label="Mover para a esquerda" style={{ background: 'none', border: 0, color: '#fff', cursor: 'pointer' }}>‹</button>
+            <button type="button" onClick={() => onChange(value.filter((_, j) => j !== i))} aria-label="Remover foto" style={{ background: 'none', border: 0, color: '#FF5C7A', cursor: 'pointer' }}>✕</button>
+            <button type="button" onClick={() => move(i, 1)} aria-label="Mover para a direita" style={{ background: 'none', border: 0, color: '#fff', cursor: 'pointer' }}>›</button>
+          </div>
+          {i === 0 && <span className="badge tone-accent" style={{ position: 'absolute', top: 4, left: 4, fontSize: '.6rem' }}>Capa</span>}
+        </div>
+      ))}</div>
+      <div className="flex wrap">
+        <label className="btn btn-ghost btn-sm" style={{ cursor: 'pointer' }}>{busy ? 'Processando...' : '📷 Enviar fotos'}<input type="file" accept="image/*" multiple hidden onChange={(e) => add([...e.target.files])} /></label>
+        <input className="input" style={{ flex: 1, minWidth: 180 }} placeholder="ou cole o link de uma imagem" value={url} onChange={(e) => setUrl(e.target.value)} />
+        <button type="button" className="btn btn-ghost btn-sm" onClick={() => { if (url.trim()) { onChange([...value, url.trim()]); setUrl('') } }}>Adicionar link</button>
+      </div>
+      <small className="muted">As fotos são compactadas automaticamente. A primeira é a capa.</small>
     </div>
   )
 }
