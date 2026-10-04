@@ -2,9 +2,9 @@ import { useEffect, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useDB, cartCount, calcCart, brl, clearCart, whatsNumber, waLink, fmtDate, getDB } from '../store'
 import { SITE, PH } from '../config'
-import { Logo, WaIcon, JetArt, Toaster } from './ui'
+import { Logo, WaIcon, JetPhoto, Toaster } from './ui'
 
-const LINKS = [['/jet-skis', 'Jet Skis'], ['/experiencias', 'Experiências'], ['/como-funciona', 'Como funciona'], ['/locais', 'Locais'], ['/sobre', 'Sobre'], ['/contato', 'Contato']]
+const LINKS = [['/jet-skis', 'Jet Skis'], ['/venda', 'Venda'], ['/experiencias', 'Experiências'], ['/como-funciona', 'Como funciona'], ['/locais', 'Locais'], ['/sobre', 'Sobre'], ['/contato', 'Contato']]
 
 export function MiniCart({ open, onClose }) {
   const db = useDB()
@@ -22,13 +22,13 @@ export function MiniCart({ open, onClose }) {
           <div className="empty"><div style={{ fontSize: 42 }}>🌊</div><p>Sua reserva está vazia.<br />Escolha um Jet Ski para começar.</p><button className="btn btn-primary" onClick={() => { onClose(); nav('/jet-skis') }}>Ver Jet Skis</button></div>
         ) : (
           <>
-            <div style={{ borderRadius: 14, overflow: 'hidden', aspectRatio: '16/8' }}><JetArt hue={c.jet.hue} /></div>
-            <div className="line" style={{ marginTop: 12 }}><span>🌊 <strong>{c.jet.marca} {c.jet.modelo}</strong><br /><small>{cart.duracao}h {cart.data ? `· ${fmtDate(cart.data)} ${cart.hora}` : '· data a definir'}</small></span><strong>{brl(c.base)}</strong></div>
+            <div style={{ borderRadius: 14, overflow: 'hidden', aspectRatio: '16/10' }}><JetPhoto jet={c.jet} /></div>
+            <div className="line" style={{ marginTop: 12 }}><span>🌊 <strong>{c.jet.marca} {c.jet.modelo}</strong><br /><small>{cart.diarias} diária{cart.diarias > 1 ? 's' : ''} {cart.data ? `· ${fmtDate(cart.data)} → ${fmtDate(c.dataFim)}` : '· data a definir'}</small></span><strong>{brl(c.base)}</strong></div>
             {c.itens.map((i) => <div className="line" key={i.nome}><span>{i.icon} {i.nome}</span><strong>{brl(i.preco)}</strong></div>)}
             {c.desconto > 0 && <div className="line"><span>🏷️ Cupom {c.coupon.codigo}</span><strong style={{ color: 'var(--success)' }}>-{brl(c.desconto)}</strong></div>}
             <div className="divider" />
             <div className="total"><span>Total</span><span>{brl(c.total)}</span></div>
-            <small className="muted">+ caução devolvível de {brl(c.caucao)}</small>
+            <small className="muted">Entrada para confirmar ({c.entradaPct}%): <strong>{brl(c.entrada)}</strong></small>
             <div style={{ marginTop: 'auto', paddingTop: 20 }} className="stack">
               <button className="btn btn-primary btn-block" onClick={() => { onClose(); nav('/minha-reserva') }}>VER MINHA RESERVA</button>
               <button className="btn btn-ghost btn-block btn-sm" onClick={clearCart}>Esvaziar</button>
@@ -77,19 +77,19 @@ export function Navbar() {
 }
 
 export function Footer() {
+  const st = useDB().settings
   return (
     <footer className="footer">
       <div className="container">
         <div className="footer-grid">
           <div><Logo /><p style={{ marginTop: 16, maxWidth: 320 }}>Locação de Jet Skis em Goiás. {SITE.slogan}</p>
-            <p className="small muted">{SITE.instagram || PH('REDES SOCIAIS')}</p></div>
+            <a className="small" href={st.instagramUrl || '#'} target="_blank" rel="noreferrer">📸 {st.instagram || PH('REDES SOCIAIS')}</a></div>
           <div className="stack"><h4>Navegação</h4>{LINKS.map(([to, l]) => <div key={to}><Link to={to}>{l}</Link></div>)}</div>
-          <div className="stack"><h4>Sua conta</h4><div><Link to="/minha-reserva">Minha Reserva</Link></div><div><Link to="/login">Login</Link></div><div><Link to="/cadastro">Criar conta</Link></div><div><Link to="/cliente">Área do cliente</Link></div><div><Link to="/admin">Painel administrativo</Link></div></div>
+          <div className="stack"><h4>Sua conta</h4><div><Link to="/minha-reserva">Minha Reserva</Link></div><div><Link to="/venda">Jet Skis à venda</Link></div><div><Link to="/login">Login</Link></div><div><Link to="/cadastro">Criar conta</Link></div><div><Link to="/cliente">Área do cliente</Link></div><div><Link to="/admin">Painel administrativo</Link></div></div>
           <div className="stack"><h4>Contato</h4>
-            <div className="small">📍 {SITE.endereco || PH('ENDEREÇO')}</div>
-            <div className="small">📞 {SITE.telefone || PH('TELEFONE')}</div>
-            <div className="small">💬 {SITE.whatsapp || PH('WHATSAPP')}</div>
-            <div className="small">🕒 {SITE.horario || PH('HORÁRIOS')}</div>
+            <div className="small">📍 {st.endereco || PH('ENDEREÇO')}{st.cidade ? ' — ' + st.cidade : ''}</div>
+            <a className="small" href={waLink(st.whatsapp, 'Olá! Vim pelo site da Loca Jett.')} target="_blank" rel="noreferrer">💬 {st.telefone || PH('WHATSAPP')}</a>
+            <div className="small">🕒 {st.diasFuncionamento || PH('DIAS E HORÁRIOS')}</div>
           </div>
         </div>
         <div className="divider" style={{ margin: '40px 0 20px' }} />

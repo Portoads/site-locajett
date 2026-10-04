@@ -38,6 +38,12 @@ export function JetArt({ hue = 200, className = '', scene = true }) {
   )
 }
 
+export function JetPhoto({ jet, i = 0, className = '', fit = 'cover' }) {
+  const src = jet?.fotos?.[i] || jet?.fotos?.[0]
+  if (!src) return <JetArt hue={jet?.hue ?? 200} className={className} />
+  return <img src={src} alt={`${jet.marca || ''} ${jet.modelo || ''}`.trim() || 'Jet Ski'} loading="lazy" className={'jet-art ' + className} style={{ width: '100%', height: '100%', objectFit: fit, background: '#E9EEF2' }} />
+}
+
 export function Logo({ size = 38 }) {
   const lg = 'lg' + useId().replace(/:/g, '')
   return (
