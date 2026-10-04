@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { useDB, brl, updateCart, emptyCart, slotsFor, DURACOES, jetPrice, whatsNumber, waLink, getDB, today } from '../store'
-import { JetArt, JetBadge, Reveal, Field, toast, WaIcon } from '../components/ui'
+import { useDB, brl, updateCart, emptyCart, whatsNumber, waLink, getDB, today, rangeConflict, maxDiarias, rangeEnd, fmtDate, diariasLabel, SALE_STATUS } from '../store'
+import { calcPrice } from '../shared'
+import { DiariasPicker } from './MinhaReserva'
+import { JetArt, JetPhoto, JetBadge, Badge, Reveal, Field, toast, WaIcon } from '../components/ui'
 import { PageHead, openCart } from '../components/Layout'
 import Calendar from '../components/Calendar'
 import { SITE, PH } from '../config'
@@ -10,14 +12,14 @@ export function JetCard({ jet, i = 0 }) {
   const nav = useNavigate()
   const db = useDB()
   const loc = db.locations.find((l) => l.id === jet.localId)
-  const reserve = () => { updateCart({ ...emptyCart(), jetId: jet.id, localId: jet.localId, duracao: 2 }); toast('🌊 Jet Ski adicionado à Minha Reserva'); nav('/jet-skis/' + jet.id + '#reservar') }
+  const reserve = () => { updateCart({ ...emptyCart(), ...(db.cart?.data ? { data: db.cart.data, diarias: db.cart.diarias } : {}), jetId: jet.id, localId: jet.localId }); toast('🌊 Jet Ski adicionado à Minha Reserva'); nav('/jet-skis/' + jet.id + '#reservar') }
   return (
     <Reveal delay={i * 80} className="card card-hover jet-card">
-      <Link to={'/jet-skis/' + jet.id} className="jet-media" aria-label={`Ver ${jet.marca} ${jet.modelo}`}><JetArt hue={jet.hue} /><JetBadge status={jet.status} /></Link>
+      <Link to={'/jet-skis/' + jet.id} className="jet-media" style={{ aspectRatio: '1/1' }} aria-label={`Ver ${jet.marca} ${jet.modelo}`}><JetPhoto jet={jet} /><JetBadge status={jet.status} />{jet.precoOriginal > jet.precoDiaria && <span className="badge tone-warning" style={{ left: 'auto', right: 14, background: 'rgba(3,14,28,.75)' }}>-{Math.round((1 - jet.precoDiaria / jet.precoOriginal) * 100)}% promoção</span>}</Link>
       <div className="jet-body">
         <div><small className="muted">{jet.marca} · {jet.categoria} · {jet.ano}</small><h3 style={{ margin: '2px 0 0' }}>{jet.modelo}</h3><small className="muted">📍 {loc?.nome}</small></div>
-        <div className="specs"><div className="spec"><span>Pessoas</span><strong>{jet.capacidade}</strong></div><div className="spec"><span>Potência</span><strong>{jet.potencia}</strong></div><div className="spec"><span>Vel. máx.</span><strong>{jet.velMax}</strong></div></div>
-        <div className="flex between" style={{ marginTop: 'auto' }}><div className="price">{brl(jet.precoHora)}<small> /hora</small></div></div>
+        <div className="specs"><div className="spec"><span>Ano</span><strong>{jet.ano}</strong></div><div className="spec"><span>Potência</span><strong>{jet.potencia || '—'}</strong></div><div className="spec"><span>Pessoas</span><strong>{jet.capacidade || 'A confirmar'}</strong></div></div>
+        <div style={{ marginTop: 'auto' }}>{jet.precoOriginal > jet.precoDiaria && <small className="muted" style={{ textDecoration: 'line-through' }}>de {brl(jet.precoOriginal)}</small>}<div className="price">{brl(jet.precoDiaria)}<small> /diária</small></div></div>
         <div className="grid g2" style={{ gap: 8 }}>
           <Link to={'/jet-skis/' + jet.id} className="btn btn-ghost btn-sm">Ver detalhes</Link>
           <button className="btn btn-primary btn-sm" onClick={reserve} disabled={jet.status === 'manutencao' || jet.status === 'indisponivel'}>Reservar</button>
@@ -41,10 +43,11 @@ function Waves() {
 export function Home() {
   const db = useDB()
   const nav = useNavigate()
-  const [q, setQ] = useState({ data: '', duracao: 2, pessoas: 2, localId: '' })
+  const [q, setQ] = useState({ data: '', diarias: 1, jetId: '' })
   const jets = db.jetskis.slice(0, 3)
   const exps = db.experiences.filter((e) => e.ativo).slice(0, 6)
-  const search = () => { updateCart({ ...emptyCart(), ...q, jetId: null }); nav('/jet-skis' + (q.localId ? '?local=' + q.localId : '')) }
+  const search = () => { if (q.jetId) { updateCart({ ...emptyCart(), data: q.data, diarias: q.diarias, jetId: q.jetId, localId: db.jetskis.find((j) => j.id === q.jetId)?.localId }); nav('/jet-skis/' + q.jetId + '#reservar') } else { updateCart({ ...emptyCart(), data: q.data, diarias: q.diarias, jetId: null }); nav('/jet-skis') } }
+  const promos = db.promos || db.coupons.filter((c) => c.ativo && c.imagem)
   return (
     <>
       <section className="hero">
@@ -60,7 +63,7 @@ export function Home() {
               <Link to="/jet-skis" className="btn btn-primary">Reservar agora →</Link>
               <a href="#frota" className="btn btn-ghost">Ver Jet Skis</a>
             </div>
-            <div className="hero-stats"><div><strong>Reserva online</strong><span>em poucos minutos</span></div><div><strong>Confirmação</strong><span>direto no WhatsApp</span></div><div><strong>Segurança</strong><span>coletes e orientação</span></div></div>
+            <div className="hero-stats"><div><strong>Diárias</strong><span>a partir de {brl(Math.min(...db.jetskis.map((j) => j.precoDiaria || Infinity)))}</span></div><div><strong>Reserva online</strong><span>{db.settings.entradaPct}% de entrada · Pix ou cartão</span></div><div><strong>Goiás — GO</strong><span>de norte a sul do estado</span></div></div>
           </div>
         </div>
       </section>
@@ -68,9 +71,9 @@ export function Home() {
       <div className="container">
         <div className="booking-bar" role="search" aria-label="Buscar disponibilidade">
           <Field label="📅 Data" id="bb-d"><input id="bb-d" type="date" className="input" min={today()} value={q.data} onChange={(e) => setQ({ ...q, data: e.target.value })} /></Field>
-          <Field label="⏱️ Duração" id="bb-du"><select id="bb-du" className="input" value={q.duracao} onChange={(e) => setQ({ ...q, duracao: +e.target.value })}>{DURACOES.map((d) => <option key={d.h} value={d.h}>{d.label}</option>)}</select></Field>
-          <Field label="👥 Pessoas" id="bb-p"><select id="bb-p" className="input" value={q.pessoas} onChange={(e) => setQ({ ...q, pessoas: +e.target.value })}>{[1, 2, 3].map((n) => <option key={n}>{n}</option>)}</select></Field>
-          <Field label="📍 Local" id="bb-l"><select id="bb-l" className="input" value={q.localId} onChange={(e) => setQ({ ...q, localId: e.target.value })}><option value="">Todos os locais</option>{db.locations.filter((l) => l.ativo).map((l) => <option key={l.id} value={l.id}>{l.nome}</option>)}</select></Field>
+          <Field label="🗓️ Diárias" id="bb-du"><select id="bb-du" className="input" value={q.diarias} onChange={(e) => setQ({ ...q, diarias: +e.target.value })}>{Array.from({ length: Number(db.settings.diariasMax) || 15 }, (_, i) => <option key={i} value={i + 1}>{diariasLabel(i + 1)}</option>)}</select></Field>
+          <Field label="🌊 Jet Ski" id="bb-j"><select id="bb-j" className="input" value={q.jetId} onChange={(e) => setQ({ ...q, jetId: e.target.value })}><option value="">Todos os modelos</option>{db.jetskis.map((j) => <option key={j.id} value={j.id}>{j.modelo} — {brl(j.precoDiaria)}/diária</option>)}</select></Field>
+          <Field label="💳 Entrada" id="bb-e"><div className="input" style={{ color: 'var(--text-secondary)' }}>{db.settings.entradaPct}% via Pix ou cartão</div></Field>
           <button className="btn btn-primary" onClick={search}>Buscar Jet Skis</button>
         </div>
       </div>
@@ -81,7 +84,23 @@ export function Home() {
             <Reveal><span className="eyebrow">Nossa frota</span><h2 style={{ margin: 0 }}>Escolha seu Jet Ski</h2></Reveal>
             <Link to="/jet-skis" className="btn btn-ghost">Ver todos →</Link>
           </div>
-          <div className="grid g3">{jets.map((j, i) => <JetCard key={j.id} jet={j} i={i} />)}</div>
+          <div className={"grid " + (jets.length === 2 ? "g2" : "g3")} style={jets.length === 2 ? { maxWidth: 900 } : null}>{jets.map((j, i) => <JetCard key={j.id} jet={j} i={i} />)}</div>
+        </div>
+      </section>
+
+      {promos.length > 0 && <section className="section" style={{ paddingTop: 0 }}>
+        <div className="container">
+          <Reveal style={{ marginBottom: 24 }}><span className="eyebrow">Promoções</span><h2 style={{ margin: 0 }}>Cupons de desconto</h2><p style={{ marginTop: 8 }}>Peça seu cupom no WhatsApp ou Instagram {db.settings.instagram} e use em Minha Reserva. Validade: {promos[0].validadeDias || 30} dias após o recebimento.</p></Reveal>
+          <div className="grid g2">{promos.map((c, i) => <Reveal key={c.id} delay={i * 80}><a href={waLink(whatsNumber(), `Olá! Quero receber o cupom de ${c.valor}% de desconto da Loca Jett.`)} target="_blank" rel="noreferrer" className="card card-hover" style={{ display: 'block', padding: 0, overflow: 'hidden' }}><img src={c.imagem} alt={`Cupom de ${c.valor}% de desconto`} loading="lazy" style={{ width: '100%' }} /></a></Reveal>)}</div>
+        </div>
+      </section>}
+
+      <section className="section" style={{ paddingTop: 0 }}>
+        <div className="container">
+          <Reveal className="card flex wrap between" style={{ padding: 'clamp(24px,4vw,40px)', gap: 20 }}>
+            <div><span className="eyebrow">Venda de Jet Skis</span><h3 style={{ margin: 0 }}>Quer comprar um Jet Ski?</h3><p style={{ margin: '8px 0 0' }}>Veja os modelos à venda e fale direto com a Loca Jett.</p></div>
+            <Link to="/venda" className="btn btn-primary">Ver Jet Skis à venda →</Link>
+          </Reveal>
         </div>
       </section>
 
@@ -97,7 +116,7 @@ export function Home() {
       <section className="section">
         <div className="container">
           <Reveal style={{ textAlign: 'center', marginBottom: 48 }}><span className="eyebrow">Como funciona</span><h2>Reserve em 4 passos</h2></Reveal>
-          <div className="grid g4">{[['🌊', 'Escolha o Jet Ski', 'Compare modelos, capacidade e preços.'], ['📅', 'Data e horário', 'Veja só os horários realmente livres.'], ['✨', 'Personalize', 'Adicione fotos, instrutor, VIP e mais.'], ['💬', 'Finalize no WhatsApp', 'Receba a confirmação da nossa equipe.']].map(([ic, t, d], i) => (
+          <div className="grid g4">{[['🌊', 'Escolha o Jet Ski', 'Compare modelos, capacidade e preços.'], ['📅', 'Data e diárias', 'Veja só os dias realmente livres.'], ['✨', 'Personalize', 'Adicione fotos, instrutor, VIP e mais.'], ['💬', 'Entrada e WhatsApp', 'Pague a entrada (Pix ou cartão) e receba a confirmação.']].map(([ic, t, d], i) => (
             <Reveal key={t} delay={i * 80} className="card"><div className="flex"><span style={{ fontSize: 28 }}>{ic}</span><span className="badge tone-accent">Passo {i + 1}</span></div><h4 style={{ marginTop: 14 }}>{t}</h4><p className="small">{d}</p></Reveal>
           ))}</div>
         </div>
@@ -123,7 +142,7 @@ export function JetSkis() {
   const [f, setF] = useState({ cat: '', local: params.get('local') || '', cap: 0, ord: 'preco' })
   const cats = [...new Set(db.jetskis.map((j) => j.categoria))]
   const list = db.jetskis.filter((j) => (!f.cat || j.categoria === f.cat) && (!f.local || j.localId === f.local) && j.capacidade >= f.cap)
-    .sort((a, b) => (f.ord === 'preco' ? a.precoHora - b.precoHora : b.precoHora - a.precoHora))
+    .sort((a, b) => (f.ord === 'preco' ? a.precoDiaria - b.precoDiaria : b.precoDiaria - a.precoDiaria))
   return (
     <>
       <PageHead eyebrow="Catálogo" title="Jet Skis disponíveis" text="Escolha o modelo ideal para o seu passeio. Todos com coletes e orientação de segurança." />
@@ -147,18 +166,20 @@ export function JetSkiDetail() {
   const { id } = useParams()
   const db = useDB()
   const nav = useNavigate()
+  const s = db.settings
   const jet = db.jetskis.find((j) => j.id === id)
   const sameCart = db.cart?.jetId === id ? db.cart : null
-  const [r, setR] = useState(() => ({ data: sameCart?.data || '', hora: sameCart?.hora || '', duracao: sameCart?.duracao || 2, pessoas: sameCart?.pessoas || 1, servicos: sameCart?.servicos || [] }))
+  const [r, setR] = useState(() => ({ data: sameCart?.data || db.cart?.data || '', diarias: sameCart?.diarias || db.cart?.diarias || 1, servicos: sameCart?.servicos || [] }))
   const [view, setView] = useState(0)
-  const slots = useMemo(() => (r.data && jet ? slotsFor(jet.id, r.data, r.duracao) : []), [r.data, r.duracao, jet, db.reservations])
   if (!jet) return <PageHead eyebrow="Ops" title="Jet Ski não encontrado" />
   const loc = db.locations.find((l) => l.id === jet.localId)
-  const price = jetPrice(jet, r.duracao)
-  const extras = db.services.filter((s) => r.servicos.includes(s.id)).reduce((a, s) => a + s.preco, 0)
+  const fotos = jet.fotos?.length ? jet.fotos : []
+  const conflict = r.data ? rangeConflict(jet.id, r.data, r.diarias) : null
+  const p = calcPrice({ jet, diarias: r.diarias, services: db.services.filter((x) => r.servicos.includes(x.id)), settings: s })
   const toggle = (sid) => setR({ ...r, servicos: r.servicos.includes(sid) ? r.servicos.filter((x) => x !== sid) : [...r.servicos, sid] })
   const add = (go) => {
-    updateCart({ ...(sameCart || emptyCart()), jetId: jet.id, localId: jet.localId, ...r, hora: slots.includes(r.hora) ? r.hora : '' })
+    if (r.data && conflict) return toast('Período indisponível — escolha outra data')
+    updateCart({ ...(sameCart || emptyCart()), jetId: jet.id, localId: jet.localId, ...r })
     toast('🛒 Adicionado à Minha Reserva')
     go ? nav('/minha-reserva') : openCart()
   }
@@ -170,21 +191,19 @@ export function JetSkiDetail() {
           <Link to="/jet-skis" className="small muted">← Voltar ao catálogo</Link>
           <div className="grid g2" style={{ marginTop: 20, alignItems: 'start' }}>
             <div>
-              <div className="card" style={{ padding: 0, overflow: 'hidden', aspectRatio: '16/10' }}><JetArt hue={(jet.hue + view * 25) % 360} /></div>
-              <div className="grid g4" style={{ gap: 8, marginTop: 8 }}>{[0, 1, 2, 3].map((v) => <button key={v} onClick={() => setView(v)} className="card" style={{ padding: 0, overflow: 'hidden', aspectRatio: '16/10', cursor: 'pointer', borderColor: view === v ? 'var(--primary)' : undefined }} aria-label={`Foto ${v + 1}`}><JetArt hue={(jet.hue + v * 25) % 360} /></button>)}</div>
-              <small className="muted">Imagens ilustrativas — substitua pelas fotos reais no painel.</small>
+              <div className="card" style={{ padding: 0, overflow: 'hidden', aspectRatio: '1/1' }}><JetPhoto jet={jet} i={view} fit="contain" /></div>
+              {fotos.length > 1 && <div className="grid g4" style={{ gap: 8, marginTop: 8 }}>{fotos.map((f, v) => <button key={v} onClick={() => setView(v)} className="card" style={{ padding: 0, overflow: 'hidden', aspectRatio: '1/1', cursor: 'pointer', borderColor: view === v ? 'var(--primary)' : undefined }} aria-label={`Foto ${v + 1}`}><img src={f} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /></button>)}</div>}
             </div>
             <div>
               <JetBadge status={jet.status} />
               <h1 style={{ fontSize: 'clamp(2rem,4vw,3rem)', marginTop: 12 }}>{jet.marca} {jet.modelo}</h1>
               <p>{jet.descricao}</p>
-              <div className="flex wrap" style={{ gap: 20, margin: '16px 0' }}>
-                <div><div className="price">{brl(jet.precoHora)}</div><small className="muted">por hora</small></div>
-                <div><div className="price">{brl(jet.precoPeriodo)}</div><small className="muted">meio período (4h)</small></div>
-                <div><div className="price">{brl(jet.precoDiaria)}</div><small className="muted">diária (8h)</small></div>
+              <div className="flex wrap" style={{ gap: 20, margin: '16px 0', alignItems: 'flex-end' }}>
+                <div>{jet.precoOriginal > jet.precoDiaria && <small className="muted" style={{ textDecoration: 'line-through' }}>de {brl(jet.precoOriginal)}</small>}<div className="price" style={{ fontSize: '2.2rem' }}>{brl(jet.precoDiaria)}</div><small className="muted">por diária · mínimo 1 diária</small></div>
+                {jet.precoOriginal > jet.precoDiaria && <span className="badge tone-warning">Economize {brl(jet.precoOriginal - jet.precoDiaria)} por diária</span>}
               </div>
               <div className="specs" style={{ gridTemplateColumns: 'repeat(3,1fr)' }}>
-                {[['Ano', jet.ano], ['Categoria', jet.categoria], ['Potência', jet.potencia], ['Capacidade', jet.capacidade + ' pessoas'], ['Cor', jet.cor], ['Vel. máx.', jet.velMax], ['Caução', brl(jet.caucao)], ['Local', loc?.nome.split(' — ')[0]], ['ID', jet.identificacao]].map(([k, v]) => <div className="spec" key={k}><span>{k}</span><strong>{v}</strong></div>)}
+                {[['Ano', jet.ano], ['Categoria', jet.categoria], ['Potência', jet.potencia || '—'], ['Capacidade', jet.capacidade ? jet.capacidade + ' pessoas' : 'A confirmar'], ['Cor', jet.cor || '—'], ['Combustível', 'Não incluso'], ['Idade mínima', s.idadeMinima + ' anos'], ['Local', loc?.nome?.split(' — ')[0]], ['Entrada', s.entradaPct + '% na reserva']].map(([k, v]) => <div className="spec" key={k}><span>{k}</span><strong>{v}</strong></div>)}
               </div>
               <a href="#reservar" className="btn btn-primary" style={{ marginTop: 20 }}>Reservar este Jet Ski ↓</a>
             </div>
@@ -195,36 +214,37 @@ export function JetSkiDetail() {
       <section className="section" style={{ paddingTop: 48 }}>
         <div className="container grid" style={{ gridTemplateColumns: 'minmax(0,1.4fr) minmax(0,1fr)', gap: 28 }} id="reservar">
           <div className="stack">
-            <div className="card"><h3>1. Escolha a data</h3>{disabled ? <p>Este Jet Ski está em manutenção no momento. Escolha outro modelo.</p> : <Calendar jetId={jet.id} value={r.data} onChange={(data) => setR({ ...r, data, hora: '' })} />}</div>
-            <div className="card"><h3>2. Duração e horário</h3>
-              <div className="flex wrap" style={{ marginBottom: 16 }}>{DURACOES.map((d) => <button key={d.h} className={'chip ' + (r.duracao === d.h ? 'on' : '')} onClick={() => setR({ ...r, duracao: d.h, hora: '' })}>{d.label}</button>)}</div>
-              {!r.data ? <p className="muted small">Selecione uma data para ver os horários livres.</p> : slots.length ? <div className="slots">{slots.map((s) => <button key={s} className={'chip ' + (r.hora === s ? 'on' : '')} onClick={() => setR({ ...r, hora: s })}>{s}</button>)}</div> : <p className="small" style={{ color: 'var(--warning)' }}>Sem horários livres para essa duração nesta data.</p>}
+            <div className="card"><h3>1. Escolha a data de início</h3>{disabled ? <p>Este Jet Ski está indisponível no momento. Escolha outro modelo.</p> : <Calendar jetId={jet.id} value={r.data} onChange={(data) => setR({ ...r, data, diarias: Math.min(r.diarias, Math.max(1, maxDiarias(jet.id, data))) })} />}</div>
+            <div className="card"><h3>2. Quantidade de diárias</h3>
+              <DiariasPicker jetId={jet.id} data={r.data} value={r.diarias} onChange={(diarias) => setR({ ...r, diarias })} />
+              {conflict && <p className="err-msg" style={{ marginTop: 8 }}>Parte desse período já está reservada ou bloqueada.</p>}
+              <p className="small muted" style={{ marginTop: 10 }}>Locação somente por diária. {s.horarioRetirada ? `Retirada: ${s.horarioRetirada}. ` : ''}{s.horarioDevolucao ? `Devolução: ${s.horarioDevolucao}.` : ''}</p>
             </div>
-            <div className="card"><h3>3. Serviços adicionais</h3>
-              <div className="grid g2" style={{ gap: 10 }}>{db.services.filter((s) => s.ativo).map((s) => (
-                <label key={s.id} className="card" style={{ padding: 14, cursor: 'pointer', borderColor: r.servicos.includes(s.id) ? 'var(--primary)' : undefined }}>
-                  <div className="flex between"><span>{s.icon} <strong>{s.nome}</strong></span><input type="checkbox" checked={r.servicos.includes(s.id)} onChange={() => toggle(s.id)} /></div>
-                  <small className="muted">{s.descricao}</small><div style={{ fontWeight: 700, marginTop: 4 }}>{brl(s.preco)}</div>
+            {db.services.some((x) => x.ativo) && <div className="card"><h3>3. Serviços adicionais</h3>
+              <div className="grid g2" style={{ gap: 10 }}>{db.services.filter((x) => x.ativo).map((x) => (
+                <label key={x.id} className="card" style={{ padding: 14, cursor: 'pointer', borderColor: r.servicos.includes(x.id) ? 'var(--primary)' : undefined }}>
+                  <div className="flex between"><span>{x.icon} <strong>{x.nome}</strong></span><input type="checkbox" checked={r.servicos.includes(x.id)} onChange={() => toggle(x.id)} /></div>
+                  <small className="muted">{x.descricao}</small><div style={{ fontWeight: 700, marginTop: 4 }}>{brl(x.preco)}</div>
                 </label>
               ))}</div>
-            </div>
+            </div>}
             <div className="grid g2">
-              <div className="card"><h4>Características</h4><ul className="small" style={{ color: 'var(--text-secondary)', paddingLeft: 18 }}>{jet.caracteristicas.map((c) => <li key={c}>{c}</li>)}</ul></div>
-              <div className="card"><h4>Regras e requisitos</h4><ul className="small" style={{ color: 'var(--text-secondary)', paddingLeft: 18 }}>{jet.regras.map((c) => <li key={c}>{c}</li>)}<li>Documento com foto no dia</li></ul></div>
+              <div className="card"><h4>Características</h4><ul className="small" style={{ color: 'var(--text-secondary)', paddingLeft: 18 }}>{(jet.caracteristicas || []).map((c) => <li key={c}>{c}</li>)}</ul></div>
+              <div className="card"><h4>Regras e requisitos</h4><ul className="small" style={{ color: 'var(--text-secondary)', paddingLeft: 18 }}>{(jet.regras || []).map((c) => <li key={c}>{c}</li>)}{s.exigeHabilitacao && <li>{s.textoHabilitacao}</li>}<li>Documentos: {s.documentos || '[A DEFINIR]'}</li></ul></div>
             </div>
           </div>
           <aside>
             <div className="card" style={{ position: 'sticky', top: 96 }}>
               <h3>Resumo</h3>
-              <div className="line"><span>Data</span><strong>{r.data ? r.data.split('-').reverse().join('/') : '—'}</strong></div>
-              <div className="line"><span>Horário</span><strong>{r.hora || '—'}</strong></div>
-              <div className="line"><span>Duração</span><strong>{r.duracao}h</strong></div>
-              <div className="line"><span>Pessoas</span><select className="input" style={{ width: 80, padding: '4px 8px' }} value={r.pessoas} onChange={(e) => setR({ ...r, pessoas: +e.target.value })}>{Array.from({ length: jet.capacidade }, (_, i) => <option key={i}>{i + 1}</option>)}</select></div>
+              <div className="line"><span>Início</span><strong>{r.data ? fmtDate(r.data) : '—'}</strong></div>
+              <div className="line"><span>Término</span><strong>{r.data ? fmtDate(rangeEnd(r.data, r.diarias)) : '—'}</strong></div>
+              <div className="line"><span>Diárias</span><strong>{r.diarias}</strong></div>
               <div className="divider" />
-              <div className="line"><span>Jet Ski</span><strong>{brl(price)}</strong></div>
-              <div className="line"><span>Adicionais</span><strong>{brl(extras)}</strong></div>
-              <div className="total" style={{ marginTop: 8 }}><span>Total</span><span>{brl(price + extras)}</span></div>
-              <small className="muted">+ caução devolvível de {brl(jet.caucao)}</small>
+              <div className="line"><span>{diariasLabel(r.diarias)} × {brl(jet.precoDiaria)}</span><strong>{brl(p.base)}</strong></div>
+              {p.adicionais > 0 && <div className="line"><span>Adicionais</span><strong>{brl(p.adicionais)}</strong></div>}
+              {p.economia > 0 && <div className="line"><span className="small">Você economiza</span><strong className="small" style={{ color: 'var(--success)' }}>{brl(p.economia)}</strong></div>}
+              <div className="total" style={{ marginTop: 8 }}><span>Total</span><span>{brl(p.total)}</span></div>
+              <div className="line"><span>Entrada ({p.entradaPct}%) via Pix ou cartão</span><strong style={{ color: 'var(--primary)' }}>{brl(p.entrada)}</strong></div>
               <div className="stack" style={{ marginTop: 16 }}>
                 <button className="btn btn-primary btn-block" disabled={disabled} onClick={() => add(true)}>Continuar reserva →</button>
                 <button className="btn btn-ghost btn-block" disabled={disabled} onClick={() => add(false)}>🛒 Adicionar à Minha Reserva</button>
@@ -258,14 +278,19 @@ export function Experiencias() {
 }
 
 export function ComoFunciona() {
-  const steps = [['🌊', 'Escolha o Jet Ski', 'Navegue pelo catálogo e compare capacidade, potência e preços.'], ['📅', 'Escolha data e horário', 'O calendário mostra apenas horários disponíveis — sem conflitos.'], ['⏱️', 'Defina a duração', '1h, 2h, 3h, meio período ou diária.'], ['✨', 'Adicione experiências', 'Instrutor, fotos, drone, VIP, decoração e mais.'], ['📝', 'Preencha seus dados', 'Rápido e seguro, conforme a LGPD.'], ['🛒', 'Revise em Minha Reserva', 'Confira valores, caução e descontos.'], ['💬', 'Finalize pelo WhatsApp', 'Sua reserva recebe um número (LJ-XXXXXX) e a mensagem é enviada pronta.'], ['🤝', 'Atendimento Loca Jett', 'Nossa equipe confirma e combina pagamento e detalhes.']]
+  const s = useDB().settings
+  const steps = [['🌊', 'Escolha o Jet Ski', 'Compare modelos, potência e o valor da diária.'], ['📅', 'Escolha a data', 'O calendário mostra apenas os dias disponíveis — sem conflitos.'], ['🗓️', 'Defina as diárias', `Locação somente por diária (mínimo 1). O total é calculado na hora.`], ['📝', 'Preencha seus dados', `Titular com ${s.idadeMinima} anos ou mais. Dados protegidos (LGPD).`], ['💳', `Pague ${s.entradaPct}% de entrada`, 'Via Pix ou cartão para confirmar a reserva.'], ['💬', 'Finalize pelo WhatsApp', 'Sua reserva recebe um número (LJ-XXXXXX) e a mensagem vai pronta.'], ['🤝', 'Atendimento Loca Jett', 'Nossa equipe confirma e combina retirada e devolução.'], ['🏁', 'Aproveite a água', 'Restante pago conforme combinado.']]
+  const ph = (v) => v || '[A DEFINIR]'
   return (
     <>
       <PageHead eyebrow="Como funciona" title="Simples, rápido e seguro" text="Do clique até a água em poucos passos." />
       <section className="section" style={{ paddingTop: 48 }}><div className="container grid g4">
         {steps.map(([ic, t, d], i) => <Reveal key={t} delay={i * 50} className="card"><span className="badge tone-accent">{String(i + 1).padStart(2, '0')}</span><div style={{ fontSize: 30, marginTop: 12 }}>{ic}</div><h4 style={{ marginTop: 8 }}>{t}</h4><p className="small">{d}</p></Reveal>)}
       </div>
-      <div className="container" style={{ marginTop: 48 }}><div className="card"><h3>Requisitos para pilotar</h3><ul style={{ color: 'var(--text-secondary)' }}><li>Documento oficial com foto</li><li>Habilitação náutica (Arrais Amador) ou passeio acompanhado por instrutor — {PH('CONFIRMAR REGRA DA EMPRESA')}</li><li>Uso obrigatório de colete salva-vidas</li><li>Caução devolvível conforme o modelo</li></ul></div></div>
+      <div className="container grid g2" style={{ marginTop: 48 }}>
+        <div className="card"><h3>Requisitos para pilotar</h3><ul style={{ color: 'var(--text-secondary)' }}><li>Idade mínima: {s.idadeMinima} anos</li>{s.exigeHabilitacao && <li>{s.textoHabilitacao}</li>}<li>Documentos: {ph(s.documentos)}</li><li>Segurança: {ph(s.seguranca)}</li></ul></div>
+        <div className="card"><h3>Regras da locação</h3><ul style={{ color: 'var(--text-secondary)' }}><li>Somente por diária — mínimo 1 diária</li><li>Entrada de {s.entradaPct}% para confirmar (Pix ou cartão)</li><li>Combustível não incluso</li><li>Retirada: {ph(s.horarioRetirada)} · Devolução: {ph(s.horarioDevolucao)}</li><li>Funcionamento: {ph(s.diasFuncionamento)}</li><li>Cancelamento: {ph(s.cancelamento)}</li><li>Chuva / mau tempo: {ph(s.chuva)}</li></ul></div>
+      </div>
       </section>
     </>
   )
@@ -322,6 +347,7 @@ export function Sobre() {
 }
 
 export function Contato() {
+  const s = useDB().settings
   const [f, setF] = useState({ nome: '', email: '', msg: '' })
   const [err, setErr] = useState({})
   const send = (e) => {
@@ -334,9 +360,10 @@ export function Contato() {
     if (Object.keys(er).length) return
     window.open(waLink(whatsNumber(), `Olá! Sou ${f.nome} (${f.email}).\n\n${f.msg}`), '_blank')
   }
+  const ph = (v, c) => v || PH(c)
   return (
     <>
-      <PageHead eyebrow="Contato" title="Fale com a Loca Jett" text="Tire dúvidas, peça orçamento para grupos ou eventos." />
+      <PageHead eyebrow="Contato" title="Fale com a Loca Jett" text="Tire dúvidas, peça orçamento para grupos, pacotes sob medida ou informações sobre Jet Skis à venda." />
       <section className="section" style={{ paddingTop: 48 }}><div className="container grid g2" style={{ alignItems: 'start' }}>
         <form className="card stack" onSubmit={send} noValidate>
           <Field label="Nome" id="c-n" error={err.nome}><input id="c-n" className={'input ' + (err.nome ? 'err' : '')} value={f.nome} onChange={(e) => setF({ ...f, nome: e.target.value })} /></Field>
@@ -344,8 +371,63 @@ export function Contato() {
           <Field label="Mensagem" id="c-m" error={err.msg}><textarea id="c-m" rows={5} className={'input ' + (err.msg ? 'err' : '')} value={f.msg} onChange={(e) => setF({ ...f, msg: e.target.value })} /></Field>
           <button className="btn btn-wa"><WaIcon size={18} /> Enviar pelo WhatsApp</button>
         </form>
-        <div className="stack">{[['💬', 'WhatsApp', SITE.whatsapp || PH('WHATSAPP')], ['📞', 'Telefone', SITE.telefone || PH('TELEFONE')], ['✉️', 'E-mail', SITE.email || PH('E-MAIL')], ['📍', 'Endereço', SITE.endereco || PH('ENDEREÇO')], ['🕒', 'Horário', SITE.horario || PH('HORÁRIOS')], ['📸', 'Redes sociais', SITE.instagram || PH('REDES SOCIAIS')]].map(([i, t, v]) => <div key={t} className="card flex" style={{ padding: 16 }}><span style={{ fontSize: 24 }}>{i}</span><div><strong>{t}</strong><div className="small muted">{v}</div></div></div>)}</div>
+        <div className="stack">
+          <a className="card flex" style={{ padding: 16 }} href={waLink(whatsNumber(), 'Olá! Vim pelo site da Loca Jett.')} target="_blank" rel="noreferrer"><span style={{ fontSize: 24 }}>💬</span><div><strong>WhatsApp</strong><div className="small muted">{ph(s.telefone, 'WHATSAPP')}</div></div></a>
+          <a className="card flex" style={{ padding: 16 }} href={s.instagramUrl || '#'} target="_blank" rel="noreferrer"><span style={{ fontSize: 24 }}>📸</span><div><strong>Instagram</strong><div className="small muted">{ph(s.instagram, 'INSTAGRAM')}</div></div></a>
+          {[['📍', 'Endereço', ph(s.endereco, 'ENDEREÇO') + (s.cidade ? ' — ' + s.cidade : '')], ['🕒', 'Retirada / devolução', `${ph(s.horarioRetirada, 'HORÁRIO')} / ${ph(s.horarioDevolucao, 'HORÁRIO')}`], ['📆', 'Dias de funcionamento', ph(s.diasFuncionamento, 'DIAS')]].map(([i, t, v]) => <div key={t} className="card flex" style={{ padding: 16 }}><span style={{ fontSize: 24 }}>{i}</span><div><strong>{t}</strong><div className="small muted">{v}</div></div></div>)}
+          {s.mapsUrl && <a className="btn btn-ghost" href={s.mapsUrl} target="_blank" rel="noreferrer">🗺️ Ver no Google Maps</a>}
+        </div>
       </div></section>
     </>
+  )
+}
+
+export function Venda() {
+  const db = useDB()
+  const list = (db.sales || []).filter((x) => x.status !== 'oculto')
+  return (
+    <>
+      <PageHead eyebrow="Venda de Jet Skis" title="Jet Skis à venda" text="Seminovos e oportunidades selecionadas pela Loca Jett. Fale com a gente no WhatsApp para negociar." />
+      <section className="section" style={{ paddingTop: 40 }}><div className="container">
+        {list.length ? <div className="grid g3">{list.map((x, i) => (
+          <Reveal key={x.id} delay={i * 60} className="card card-hover jet-card">
+            <Link to={'/venda/' + x.id} className="jet-media" style={{ aspectRatio: '4/3' }}><JetPhoto jet={x} /><Badge status={x.status || 'disponivel'} map={SALE_STATUS} /></Link>
+            <div className="jet-body">
+              <div><small className="muted">{x.marca} · {x.ano}</small><h3 style={{ margin: '2px 0 0' }}>{x.modelo}</h3></div>
+              <div className="specs"><div className="spec"><span>Ano</span><strong>{x.ano || '—'}</strong></div><div className="spec"><span>Horas</span><strong>{x.horasUso ?? '—'}</strong></div><div className="spec"><span>Estado</span><strong>{x.estado || '—'}</strong></div></div>
+              <div className="price" style={{ marginTop: 'auto' }}>{x.preco ? brl(x.preco) : 'Consulte'}</div>
+              <div className="grid g2" style={{ gap: 8 }}><Link to={'/venda/' + x.id} className="btn btn-ghost btn-sm">Ver detalhes</Link><a className="btn btn-wa btn-sm" target="_blank" rel="noreferrer" href={waLink(whatsNumber(), `Olá! Tenho interesse no Jet Ski à venda: ${x.marca || ''} ${x.modelo} ${x.ano || ''}.`)}>Tenho interesse</a></div>
+            </div>
+          </Reveal>
+        ))}</div> : <div className="card empty"><div style={{ fontSize: 42 }}>🚤</div><p>Em breve novos Jet Skis à venda.<br />Quer comprar ou vender um Jet Ski? Fale com a gente.</p><a className="btn btn-wa" target="_blank" rel="noreferrer" href={waLink(whatsNumber(), 'Olá! Quero informações sobre Jet Skis à venda.')}><WaIcon size={18} /> Falar no WhatsApp</a></div>}
+      </div></section>
+    </>
+  )
+}
+
+export function VendaDetalhe() {
+  const { id } = useParams()
+  const db = useDB()
+  const [view, setView] = useState(0)
+  const x = (db.sales || []).find((s) => s.id === id)
+  if (!x) return <PageHead eyebrow="Ops" title="Anúncio não encontrado" />
+  const fotos = x.fotos || []
+  return (
+    <section className="page-head"><div className="container">
+      <Link to="/venda" className="small muted">← Voltar para Jet Skis à venda</Link>
+      <div className="grid g2" style={{ marginTop: 20, alignItems: 'start' }}>
+        <div><div className="card" style={{ padding: 0, overflow: 'hidden', aspectRatio: '4/3' }}><JetPhoto jet={x} i={view} fit="contain" /></div>
+          {fotos.length > 1 && <div className="grid g4" style={{ gap: 8, marginTop: 8 }}>{fotos.map((f, v) => <button key={v} onClick={() => setView(v)} className="card" style={{ padding: 0, overflow: 'hidden', aspectRatio: '1/1', cursor: 'pointer', borderColor: view === v ? 'var(--primary)' : undefined }} aria-label={`Foto ${v + 1}`}><img src={f} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /></button>)}</div>}</div>
+        <div className="stack">
+          <Badge status={x.status || 'disponivel'} map={SALE_STATUS} />
+          <h1 style={{ fontSize: 'clamp(2rem,4vw,3rem)', margin: 0 }}>{x.marca} {x.modelo}</h1>
+          <div className="price" style={{ fontSize: '2.2rem' }}>{x.preco ? brl(x.preco) : 'Preço sob consulta'}</div>
+          <div className="specs">{[['Ano', x.ano], ['Horas de uso', x.horasUso], ['Estado', x.estado]].map(([k, v]) => <div key={k} className="spec"><span>{k}</span><strong>{v ?? '—'}</strong></div>)}</div>
+          {x.descricao && <p>{x.descricao}</p>}
+          {x.info && <div className="card small" style={{ whiteSpace: 'pre-line' }}><strong>Informações adicionais</strong><br />{x.info}</div>}
+          <a className="btn btn-wa" target="_blank" rel="noreferrer" href={waLink(whatsNumber(), `Olá! Tenho interesse no Jet Ski à venda: ${x.marca || ''} ${x.modelo} ${x.ano || ''} (${x.preco ? brl(x.preco) : 'preço sob consulta'}).`)}><WaIcon size={18} /> Tenho interesse — falar no WhatsApp</a>
+        </div>
+      </div>
+    </div></section>
   )
 }

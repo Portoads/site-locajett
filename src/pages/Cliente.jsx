@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, NavLink, Navigate, Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { useDB, getDB, setDB, sha256, brl, fmtDate, tier, upsert, whatsNumber, waLink , today } from '../store'
-import { Field, Badge, toast, JetArt, Modal } from '../components/ui'
+import { Field, Badge, toast, JetPhoto, Modal } from '../components/ui'
 import { PageHead } from '../components/Layout'
 import { validCPF } from './MinhaReserva'
 import { contractText } from './contract'
@@ -99,12 +99,12 @@ export function ClienteLayout() {
   )
 }
 const useMe = () => { const db = useDB(); return [db, db.clients.find((c) => c.id === db.session.clientId)] }
-const ResRow = ({ r, db }) => { const j = db.jetskis.find((x) => x.id === r.jetId); return <tr><td><strong>{r.id}</strong></td><td>{j?.marca} {j?.modelo}</td><td>{fmtDate(r.data)} {r.hora}</td><td>{r.duracao}h</td><td>{brl(r.total)}</td><td><Badge status={r.status} /></td></tr> }
+const ResRow = ({ r, db }) => { const j = db.jetskis.find((x) => x.id === r.jetId); return <tr><td><strong>{r.id}</strong></td><td>{j?.marca} {j?.modelo}</td><td>{fmtDate(r.data)} → {fmtDate(r.dataFim)}</td><td>{r.diarias}</td><td>{brl(r.total)}</td><td><Badge status={r.status} /></td></tr> }
 
 export function ClienteHome() {
   const [db, me] = useMe()
   const mine = db.reservations.filter((r) => r.clientId === me.id)
-  const next = mine.filter((r) => r.data >= today() && r.status !== 'cancelada').sort((a, b) => (a.data + a.hora).localeCompare(b.data + b.hora))[0]
+  const next = mine.filter((r) => r.data >= today() && r.status !== 'cancelada').sort((a, b) => a.data.localeCompare(b.data))[0]
   const j = next && db.jetskis.find((x) => x.id === next.jetId)
   const loc = next && db.locations.find((x) => x.id === next.localId)
   const t = tier(me.pontos || 0)
@@ -112,8 +112,8 @@ export function ClienteHome() {
     <div className="grid g2" style={{ alignItems: 'start' }}>
       <div className="card">
         <h3>Próxima reserva</h3>
-        {next ? <><div style={{ borderRadius: 12, overflow: 'hidden', aspectRatio: '16/7', margin: '12px 0' }}><JetArt hue={j?.hue} /></div>
-          {[['Reserva', next.id], ['Jet Ski', `${j?.marca} ${j?.modelo}`], ['Data', fmtDate(next.data)], ['Horário', next.hora], ['Local', loc?.nome], ['Valor', brl(next.total)]].map(([k, v]) => <div className="line" key={k}><span>{k}</span><strong>{v}</strong></div>)}
+        {next ? <><div style={{ borderRadius: 12, overflow: 'hidden', aspectRatio: '16/9', margin: '12px 0' }}><JetPhoto jet={j} /></div>
+          {[['Reserva', next.id], ['Jet Ski', `${j?.marca} ${j?.modelo}`], ['Início', fmtDate(next.data)], ['Diárias', next.diarias], ['Término', fmtDate(next.dataFim)], ['Local', loc?.nome], ['Total', brl(next.total)], ['Entrada', brl(next.entrada)]].map(([k, v]) => <div className="line" key={k}><span>{k}</span><strong>{v}</strong></div>)}
           <Badge status={next.status} /></> : <div className="empty">Nenhuma reserva futura.<br /><Link to="/jet-skis" className="btn btn-primary" style={{ marginTop: 12 }}>Reservar agora</Link></div>}
       </div>
       <div className="stack">
@@ -133,8 +133,8 @@ export function ClienteReservas() {
   const mine = db.reservations.filter((r) => r.clientId === me.id).sort((a, b) => b.data.localeCompare(a.data))
   return (
     <div className="card"><h3>Minhas reservas</h3>
-      {mine.length ? <div className="table-wrap"><table><thead><tr><th>Nº</th><th>Jet Ski</th><th>Data</th><th>Duração</th><th>Total</th><th>Status</th><th></th></tr></thead>
-        <tbody>{mine.map((r) => { const j = db.jetskis.find((x) => x.id === r.jetId); const reviewed = db.reviews.some((v) => v.reservaId === r.id); return <tr key={r.id}><td><strong>{r.id}</strong></td><td>{j?.marca} {j?.modelo}</td><td>{fmtDate(r.data)} {r.hora}</td><td>{r.duracao}h</td><td>{brl(r.total)}</td><td><Badge status={r.status} /></td><td>{r.status === 'concluida' && !reviewed ? <button className="btn btn-ghost btn-sm" onClick={() => setRev(r)}>⭐ Avaliar</button> : <a className="btn btn-ghost btn-sm" target="_blank" rel="noreferrer" href={waLink(whatsNumber(), `Olá! Sobre a minha reserva ${r.id}...`)}>WhatsApp</a>}</td></tr> })}</tbody></table></div> : <div className="empty">Você ainda não tem reservas.</div>}
+      {mine.length ? <div className="table-wrap"><table><thead><tr><th>Nº</th><th>Jet Ski</th><th>Período</th><th>Diárias</th><th>Total</th><th>Status</th><th></th></tr></thead>
+        <tbody>{mine.map((r) => { const j = db.jetskis.find((x) => x.id === r.jetId); const reviewed = db.reviews.some((v) => v.reservaId === r.id); return <tr key={r.id}><td><strong>{r.id}</strong></td><td>{j?.marca} {j?.modelo}</td><td>{fmtDate(r.data)} → {fmtDate(r.dataFim)}</td><td>{r.diarias}</td><td>{brl(r.total)}</td><td><Badge status={r.status} /></td><td>{r.status === 'concluida' && !reviewed ? <button className="btn btn-ghost btn-sm" onClick={() => setRev(r)}>⭐ Avaliar</button> : <a className="btn btn-ghost btn-sm" target="_blank" rel="noreferrer" href={waLink(whatsNumber(), `Olá! Sobre a minha reserva ${r.id}...`)}>WhatsApp</a>}</td></tr> })}</tbody></table></div> : <div className="empty">Você ainda não tem reservas.</div>}
       <ReviewModal r={rev} me={me} onClose={() => setRev(null)} />
     </div>
   )
@@ -154,7 +154,7 @@ function ReviewModal({ r, me, onClose }) {
 export function ClienteLocacoes() {
   const [db, me] = useMe()
   const done = db.reservations.filter((r) => r.clientId === me.id && r.status === 'concluida')
-  return <div className="card"><h3>Experiências anteriores</h3>{done.length ? <div className="table-wrap"><table><thead><tr><th>Nº</th><th>Jet Ski</th><th>Data</th><th>Duração</th><th>Total</th><th>Status</th></tr></thead><tbody>{done.map((r) => <ResRow key={r.id} r={r} db={db} />)}</tbody></table></div> : <div className="empty">Nenhuma locação concluída ainda.</div>}</div>
+  return <div className="card"><h3>Experiências anteriores</h3>{done.length ? <div className="table-wrap"><table><thead><tr><th>Nº</th><th>Jet Ski</th><th>Período</th><th>Diárias</th><th>Total</th><th>Status</th></tr></thead><tbody>{done.map((r) => <ResRow key={r.id} r={r} db={db} />)}</tbody></table></div> : <div className="empty">Nenhuma locação concluída ainda.</div>}</div>
 }
 
 export function ClientePagamentos() {
