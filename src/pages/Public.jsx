@@ -3,25 +3,29 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useDB, brl, updateCart, emptyCart, whatsNumber, waLink, getDB, today, rangeConflict, maxDiarias, rangeEnd, fmtDate, diariasLabel, SALE_STATUS } from '../store'
 import { calcPrice } from '../shared'
 import { DiariasPicker } from './MinhaReserva'
-import { JetArt, JetPhoto, JetBadge, Badge, Reveal, Field, toast, WaIcon } from '../components/ui'
+import { JetPhoto, JetBadge, Badge, Reveal, Field, toast, WaIcon, Icon } from '../components/ui'
 import { PageHead, openCart } from '../components/Layout'
 import Calendar from '../components/Calendar'
-import { SITE, PH } from '../config'
+import { SITE, PHOTOS, clean } from '../config'
 
 export function JetCard({ jet, i = 0 }) {
   const nav = useNavigate()
   const db = useDB()
   const loc = db.locations.find((l) => l.id === jet.localId)
-  const reserve = () => { updateCart({ ...emptyCart(), ...(db.cart?.data ? { data: db.cart.data, diarias: db.cart.diarias } : {}), jetId: jet.id, localId: jet.localId }); toast('🌊 Jet Ski adicionado à Minha Reserva'); nav('/jet-skis/' + jet.id + '#reservar') }
+  const promo = jet.precoOriginal > jet.precoDiaria
+  const reserve = () => { updateCart({ ...emptyCart(), ...(db.cart?.data ? { data: db.cart.data, diarias: db.cart.diarias } : {}), jetId: jet.id, localId: jet.localId }); toast('Jet Ski adicionado à sua reserva'); nav('/jet-skis/' + jet.id + '#reservar') }
   return (
-    <Reveal delay={i * 80} className="card card-hover jet-card">
-      <Link to={'/jet-skis/' + jet.id} className="jet-media" style={{ aspectRatio: '1/1' }} aria-label={`Ver ${jet.marca} ${jet.modelo}`}><JetPhoto jet={jet} /><JetBadge status={jet.status} />{jet.precoOriginal > jet.precoDiaria && <span className="badge tone-warning" style={{ left: 'auto', right: 14, background: 'rgba(3,14,28,.75)' }}>-{Math.round((1 - jet.precoDiaria / jet.precoOriginal) * 100)}% promoção</span>}</Link>
+    <Reveal delay={i * 90} className="card card-hover jet-card">
+      <Link to={'/jet-skis/' + jet.id} className="jet-media" style={{ aspectRatio: '4/3' }} aria-label={`Ver ${jet.marca} ${jet.modelo}`}><JetPhoto jet={jet} /><JetBadge status={jet.status} /></Link>
       <div className="jet-body">
-        <div><small className="muted">{jet.marca} · {jet.categoria} · {jet.ano}</small><h3 style={{ margin: '2px 0 0' }}>{jet.modelo}</h3><small className="muted">📍 {loc?.nome}</small></div>
-        <div className="specs"><div className="spec"><span>Ano</span><strong>{jet.ano}</strong></div><div className="spec"><span>Potência</span><strong>{jet.potencia || '—'}</strong></div><div className="spec"><span>Pessoas</span><strong>{jet.capacidade || 'A confirmar'}</strong></div></div>
-        <div style={{ marginTop: 'auto' }}>{jet.precoOriginal > jet.precoDiaria && <small className="muted" style={{ textDecoration: 'line-through' }}>de {brl(jet.precoOriginal)}</small>}<div className="price">{brl(jet.precoDiaria)}<small> /diária</small></div></div>
+        <div><span className="jet-kicker">{[jet.marca, jet.categoria, jet.ano].filter(Boolean).join(' · ')}</span><h3 style={{ margin: '6px 0 0', fontSize: '2rem' }}>{jet.modelo}</h3>{loc && <small className="muted">{loc.nome}</small>}</div>
+        <div className="specs"><div className="spec"><span>Potência</span><strong>{jet.potencia || '—'}</strong></div><div className="spec"><span>Ano</span><strong>{jet.ano || '—'}</strong></div><div className="spec"><span>Pessoas</span><strong>{jet.capacidade || 'Consulte'}</strong></div></div>
+        <div className="flex between" style={{ marginTop: 'auto', alignItems: 'flex-end' }}>
+          <div>{promo && <div className="price-old">{brl(jet.precoOriginal)}</div>}<div className="price">{brl(jet.precoDiaria)}<small> / diária</small></div></div>
+          {promo && <span className="badge tone-accent">Condição especial</span>}
+        </div>
         <div className="grid g2" style={{ gap: 8 }}>
-          <Link to={'/jet-skis/' + jet.id} className="btn btn-ghost btn-sm">Ver detalhes</Link>
+          <Link to={'/jet-skis/' + jet.id} className="btn btn-ghost btn-sm">Detalhes</Link>
           <button className="btn btn-primary btn-sm" onClick={reserve} disabled={jet.status === 'manutencao' || jet.status === 'indisponivel'}>Reservar</button>
         </div>
       </div>
@@ -29,16 +33,12 @@ export function JetCard({ jet, i = 0 }) {
   )
 }
 
-function Waves() {
-  const path = 'M0 80 Q90 40 180 80 T360 80 T540 80 T720 80 T900 80 T1080 80 T1260 80 T1440 80 V200 H0Z'
-  return (
-    <div className="hero-waves" aria-hidden="true">
-      <svg className="wave1" viewBox="0 0 1440 200" preserveAspectRatio="none"><path d={path} fill="#0A6E96" /></svg>
-      <svg className="wave2" viewBox="0 0 1440 200" preserveAspectRatio="none" style={{ height: '80%' }}><path d={path} fill="#064A73" /></svg>
-      <svg className="wave3" viewBox="0 0 1440 200" preserveAspectRatio="none" style={{ height: '55%' }}><path d={path} fill="#030E1C" /></svg>
-    </div>
-  )
-}
+const PILLARS = [
+  ['Frota nova', 'Jet Skis de modelos recentes, revisados antes de cada locação e entregues impecáveis.'],
+  ['Segurança em primeiro lugar', 'Coletes, orientação antes da saída e regras claras para você aproveitar com tranquilidade.'],
+  ['Atendimento dedicado', 'Um contato direto do início ao fim — da escolha do modelo à devolução.'],
+  ['Sob medida', 'Várias diárias, grupos, datas especiais e eventos planejados do seu jeito.'],
+]
 
 export function Home() {
   const db = useDB()
@@ -48,87 +48,108 @@ export function Home() {
   const exps = db.experiences.filter((e) => e.ativo).slice(0, 6)
   const search = () => { if (q.jetId) { updateCart({ ...emptyCart(), data: q.data, diarias: q.diarias, jetId: q.jetId, localId: db.jetskis.find((j) => j.id === q.jetId)?.localId }); nav('/jet-skis/' + q.jetId + '#reservar') } else { updateCart({ ...emptyCart(), data: q.data, diarias: q.diarias, jetId: null }); nav('/jet-skis') } }
   const promos = db.promos || db.coupons.filter((c) => c.ativo && c.imagem)
+  const minPrice = Math.min(...db.jetskis.map((j) => j.precoDiaria || Infinity))
   return (
     <>
       <section className="hero">
-        <div className="hero-sun" aria-hidden="true" />
-        <Waves />
-        <div className="hero-jet" aria-hidden="true"><JetArt hue={198} scene={false} /></div>
+        <div className="hero-media" style={{ backgroundImage: `url(${PHOTOS.hero})` }} aria-hidden="true" />
         <div className="container">
           <div className="hero-content">
-            <span className="eyebrow">Locação de Jet Skis · Goiás — GO</span>
-            <h1>Viva a experiência de pilotar um <span className="grad-text">Jet Ski em Goiás.</span></h1>
-            <p className="lead">Escolha seu Jet Ski, reserve seu horário e aproveite momentos inesquecíveis na água.</p>
-            <div className="flex wrap" style={{ marginTop: 28 }}>
-              <Link to="/jet-skis" className="btn btn-primary">Reservar agora →</Link>
-              <a href="#frota" className="btn btn-ghost">Ver Jet Skis</a>
+            <span className="eyebrow">Loca Jett Oficial · Goiás</span>
+            <h1>Exclusividade sobre as águas de <em>Goiás</em>.</h1>
+            <p className="lead">Jet Skis novos de alta performance, atendimento dedicado e experiências sob medida nos lagos do estado. Reserve sua diária em poucos minutos.</p>
+            <div className="flex wrap" style={{ marginTop: 36, gap: 14 }}>
+              <Link to="/jet-skis" className="btn btn-primary">Reservar agora <Icon name="arrow" size={16} /></Link>
+              <a href="#frota" className="btn btn-ghost">Conhecer a frota</a>
             </div>
-            <div className="hero-stats"><div><strong>Diárias</strong><span>a partir de {brl(Math.min(...db.jetskis.map((j) => j.precoDiaria || Infinity)))}</span></div><div><strong>Reserva online</strong><span>{db.settings.entradaPct}% de entrada · Pix ou cartão</span></div><div><strong>Goiás — GO</strong><span>de norte a sul do estado</span></div></div>
+            <div className="hero-stats">
+              {isFinite(minPrice) && <div><strong>{brl(minPrice)}</strong><span>Diária a partir de</span></div>}
+              <div><strong>{db.settings.entradaPct}%</strong><span>Sinal para confirmar</span></div>
+              <div><strong>Goiás</strong><span>De norte a sul do estado</span></div>
+            </div>
           </div>
         </div>
+        <span className="scroll-cue" aria-hidden="true" />
       </section>
 
       <div className="container">
-        <div className="booking-bar" role="search" aria-label="Buscar disponibilidade">
-          <Field label="📅 Data" id="bb-d"><input id="bb-d" type="date" className="input" min={today()} value={q.data} onChange={(e) => setQ({ ...q, data: e.target.value })} /></Field>
-          <Field label="🗓️ Diárias" id="bb-du"><select id="bb-du" className="input" value={q.diarias} onChange={(e) => setQ({ ...q, diarias: +e.target.value })}>{Array.from({ length: Number(db.settings.diariasMax) || 15 }, (_, i) => <option key={i} value={i + 1}>{diariasLabel(i + 1)}</option>)}</select></Field>
-          <Field label="🌊 Jet Ski" id="bb-j"><select id="bb-j" className="input" value={q.jetId} onChange={(e) => setQ({ ...q, jetId: e.target.value })}><option value="">Todos os modelos</option>{db.jetskis.map((j) => <option key={j.id} value={j.id}>{j.modelo} — {brl(j.precoDiaria)}/diária</option>)}</select></Field>
-          <Field label="💳 Entrada" id="bb-e"><div className="input" style={{ color: 'var(--text-secondary)' }}>{db.settings.entradaPct}% via Pix ou cartão</div></Field>
-          <button className="btn btn-primary" onClick={search}>Buscar Jet Skis</button>
+        <div className="booking-bar" role="search" aria-label="Consultar disponibilidade">
+          <Field label="Data de início" id="bb-d"><input id="bb-d" type="date" className="input" min={today()} value={q.data} onChange={(e) => setQ({ ...q, data: e.target.value })} /></Field>
+          <Field label="Diárias" id="bb-du"><select id="bb-du" className="input" value={q.diarias} onChange={(e) => setQ({ ...q, diarias: +e.target.value })}>{Array.from({ length: Number(db.settings.diariasMax) || 15 }, (_, i) => <option key={i} value={i + 1}>{diariasLabel(i + 1)}</option>)}</select></Field>
+          <Field label="Modelo" id="bb-j"><select id="bb-j" className="input" value={q.jetId} onChange={(e) => setQ({ ...q, jetId: e.target.value })}><option value="">Todos os modelos</option>{db.jetskis.map((j) => <option key={j.id} value={j.id}>{j.marca} {j.modelo}</option>)}</select></Field>
+          <button className="btn btn-primary" onClick={search}>Consultar</button>
         </div>
       </div>
 
       <section className="section" id="frota">
         <div className="container">
-          <div className="flex between wrap" style={{ marginBottom: 32 }}>
-            <Reveal><span className="eyebrow">Nossa frota</span><h2 style={{ margin: 0 }}>Escolha seu Jet Ski</h2></Reveal>
-            <Link to="/jet-skis" className="btn btn-ghost">Ver todos →</Link>
+          <div className="flex between wrap" style={{ marginBottom: 56, alignItems: 'flex-end', gap: 24 }}>
+            <Reveal><span className="eyebrow">A frota</span><h2 style={{ margin: 0 }}>Escolha o seu <em>Jet Ski</em></h2></Reveal>
+            <Link to="/jet-skis" className="link-arrow">Ver toda a frota <Icon name="arrow" size={15} /></Link>
           </div>
-          <div className={"grid " + (jets.length === 2 ? "g2" : "g3")} style={jets.length === 2 ? { maxWidth: 900 } : null}>{jets.map((j, i) => <JetCard key={j.id} jet={j} i={i} />)}</div>
+          <div className={'grid ' + (jets.length === 2 ? 'g2' : 'g3')} style={jets.length === 2 ? { maxWidth: 960, gap: 32 } : { gap: 32 }}>{jets.map((j, i) => <JetCard key={j.id} jet={j} i={i} />)}</div>
         </div>
       </section>
 
+      <section className="section" style={{ background: 'var(--background-secondary)', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)' }}>
+        <div className="container split">
+          <Reveal className="photo" style={{ aspectRatio: '4/5' }}><img src={PHOTOS.action} alt="Jet Ski em alta velocidade sobre a água" loading="lazy" /></Reveal>
+          <Reveal delay={120}>
+            <span className="eyebrow">O padrão Loca Jett</span>
+            <h2>Cada detalhe pensado para o seu <em>dia na água</em>.</h2>
+            <p style={{ maxWidth: 480 }}>Não alugamos apenas um Jet Ski. Entregamos uma experiência completa, com o cuidado e a discrição que você espera.</p>
+            <div className="numbered" style={{ marginTop: 40, gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
+              {PILLARS.map(([t, d], i) => <div key={t}><span className="n">{String(i + 1).padStart(2, '0')}</span><h4>{t}</h4><p>{d}</p></div>)}
+            </div>
+          </Reveal>
+        </div>
+      </section>
+
+      {exps.length > 0 && <section className="section">
+        <div className="container">
+          <div className="split" style={{ alignItems: 'start', marginBottom: 48 }}>
+            <Reveal><span className="eyebrow">Experiências</span><h2 style={{ margin: 0 }}>Mais que uma locação, <em>um momento</em>.</h2></Reveal>
+            <Reveal delay={100}><p style={{ maxWidth: 460, marginTop: 8 }}>Do dia inteiro no comando a pacotes para grupos e eventos — escolha o formato ideal e nós cuidamos do resto.</p></Reveal>
+          </div>
+          <Reveal className="list-rows">{exps.map((e, i) => (
+            <div key={e.id}><span className="n">{String(i + 1).padStart(2, '0')}</span><div><h3>{e.nome}</h3><p>{e.descricao}</p></div><Link to="/experiencias" className="link-arrow">Saiba mais <Icon name="arrow" size={14} /></Link></div>
+          ))}</Reveal>
+        </div>
+      </section>}
+
       {promos.length > 0 && <section className="section" style={{ paddingTop: 0 }}>
         <div className="container">
-          <Reveal style={{ marginBottom: 24 }}><span className="eyebrow">Promoções</span><h2 style={{ margin: 0 }}>Cupons de desconto</h2><p style={{ marginTop: 8 }}>Peça seu cupom no WhatsApp ou Instagram {db.settings.instagram} e use em Minha Reserva. Validade: {promos[0].validadeDias || 30} dias após o recebimento.</p></Reveal>
-          <div className="grid g2">{promos.map((c, i) => <Reveal key={c.id} delay={i * 80}><a href={waLink(whatsNumber(), `Olá! Quero receber o cupom de ${c.valor}% de desconto da Loca Jett.`)} target="_blank" rel="noreferrer" className="card card-hover" style={{ display: 'block', padding: 0, overflow: 'hidden' }}><img src={c.imagem} alt={`Cupom de ${c.valor}% de desconto`} loading="lazy" style={{ width: '100%' }} /></a></Reveal>)}</div>
+          <Reveal style={{ marginBottom: 32 }}><span className="eyebrow">Condições especiais</span><h2 style={{ margin: 0 }}>Benefícios <em>exclusivos</em></h2><p style={{ marginTop: 12, maxWidth: 560 }}>Solicite seu cupom pelo WhatsApp{db.settings.instagram ? ' ou Instagram ' + db.settings.instagram : ''} e aplique em Minha Reserva. Válido por {promos[0].validadeDias || 30} dias após o recebimento.</p></Reveal>
+          <div className="grid g2">{promos.map((c, i) => <Reveal key={c.id} delay={i * 80}><a href={waLink(whatsNumber(), `Olá! Gostaria de receber o cupom de ${c.valor}% de desconto da Loca Jett.`)} target="_blank" rel="noreferrer" className="card card-hover" style={{ display: 'block', padding: 0, overflow: 'hidden' }}><img src={c.imagem} alt={`Cupom de ${c.valor}% de desconto`} loading="lazy" style={{ width: '100%' }} /></a></Reveal>)}</div>
         </div>
       </section>}
 
       <section className="section" style={{ paddingTop: 0 }}>
         <div className="container">
-          <Reveal className="card flex wrap between" style={{ padding: 'clamp(24px,4vw,40px)', gap: 20 }}>
-            <div><span className="eyebrow">Venda de Jet Skis</span><h3 style={{ margin: 0 }}>Quer comprar um Jet Ski?</h3><p style={{ margin: '8px 0 0' }}>Veja os modelos à venda e fale direto com a Loca Jett.</p></div>
-            <Link to="/venda" className="btn btn-primary">Ver Jet Skis à venda →</Link>
-          </Reveal>
-        </div>
-      </section>
-
-      <section className="section" style={{ background: 'var(--background-secondary)' }}>
-        <div className="container">
-          <Reveal style={{ textAlign: 'center', maxWidth: 640, margin: '0 auto 48px' }}><span className="eyebrow">Experiências</span><h2>Mais que uma locação: uma experiência</h2><p>Do primeiro passeio à surpresa perfeita, escolha o momento ideal na água.</p></Reveal>
-          <div className="grid g3">{exps.map((e, i) => (
-            <Reveal key={e.id} delay={i * 60} className="card card-hover"><div style={{ fontSize: 34 }}>{e.icon}</div><h3 style={{ marginTop: 12 }}>{e.nome}</h3><p>{e.descricao}</p><Link to="/experiencias" className="small" style={{ color: 'var(--primary)', fontWeight: 600 }}>Saiba mais →</Link></Reveal>
-          ))}</div>
-        </div>
-      </section>
-
-      <section className="section">
-        <div className="container">
-          <Reveal style={{ textAlign: 'center', marginBottom: 48 }}><span className="eyebrow">Como funciona</span><h2>Reserve em 4 passos</h2></Reveal>
-          <div className="grid g4">{[['🌊', 'Escolha o Jet Ski', 'Compare modelos, capacidade e preços.'], ['📅', 'Data e diárias', 'Veja só os dias realmente livres.'], ['✨', 'Personalize', 'Adicione fotos, instrutor, VIP e mais.'], ['💬', 'Entrada e WhatsApp', 'Pague a entrada (Pix ou cartão) e receba a confirmação.']].map(([ic, t, d], i) => (
-            <Reveal key={t} delay={i * 80} className="card"><div className="flex"><span style={{ fontSize: 28 }}>{ic}</span><span className="badge tone-accent">Passo {i + 1}</span></div><h4 style={{ marginTop: 14 }}>{t}</h4><p className="small">{d}</p></Reveal>
+          <Reveal style={{ marginBottom: 8 }}><span className="eyebrow">Como funciona</span><h2>Da reserva à água em <em>quatro etapas</em></h2></Reveal>
+          <div className="numbered">{[['Escolha o modelo', 'Compare potência, ano e valor da diária.'], ['Data e diárias', 'O calendário mostra apenas os dias realmente livres.'], ['Sinal de confirmação', `${db.settings.entradaPct}% via Pix ou cartão para garantir a data.`], ['Atendimento direto', 'Finalize pelo WhatsApp e combine retirada e devolução.']].map(([t, d], i) => (
+            <Reveal key={t} delay={i * 80}><span className="n">{String(i + 1).padStart(2, '0')}</span><h4>{t}</h4><p>{d}</p></Reveal>
           ))}</div>
         </div>
       </section>
 
       <section className="section" style={{ paddingTop: 0 }}>
         <div className="container">
-          <Reveal className="card" style={{ padding: 'clamp(28px,5vw,56px)', background: 'radial-gradient(600px 300px at 90% 10%, rgba(255,140,60,.35), transparent 60%), linear-gradient(135deg, #0A3A66, #052040)', textAlign: 'center' }}>
+          <Reveal className="card flex wrap between" style={{ padding: 'clamp(28px,4vw,48px)', gap: 24 }}>
+            <div><span className="eyebrow">Venda de Jet Skis</span><h3 style={{ margin: 0, fontSize: '2rem' }}>Pensando em ter o seu?</h3><p style={{ margin: '8px 0 0' }}>Conheça os modelos à venda e negocie diretamente com a Loca Jett.</p></div>
+            <Link to="/venda" className="btn btn-ghost">Ver modelos à venda</Link>
+          </Reveal>
+        </div>
+      </section>
+
+      <section className="cta-band">
+        <div className="bg" style={{ backgroundImage: `url(${PHOTOS.sunset})` }} aria-hidden="true" />
+        <div className="container">
+          <Reveal>
             <span className="eyebrow">Loca Jett Oficial</span>
-            <h2>Sua próxima experiência começa na água.</h2>
-            <p style={{ maxWidth: 520, margin: '0 auto 24px' }}>Garanta seu horário agora e finalize em segundos pelo WhatsApp.</p>
-            <div className="flex wrap" style={{ justifyContent: 'center' }}><Link to="/jet-skis" className="btn btn-sunset">Reservar agora</Link><a className="btn btn-wa" href={waLink(whatsNumber(), 'Olá! Quero reservar um Jet Ski com a Loca Jett Oficial.')} target="_blank" rel="noreferrer"><WaIcon size={18} /> Falar no WhatsApp</a></div>
+            <h2 style={{ maxWidth: 760, margin: '0 auto 20px' }}>Sua próxima experiência <em>começa na água</em>.</h2>
+            <p style={{ maxWidth: 500, margin: '0 auto 36px', color: '#D9D4CA' }}>Garanta sua data agora e finalize em poucos minutos com nosso atendimento.</p>
+            <div className="flex wrap" style={{ justifyContent: 'center', gap: 14 }}><Link to="/jet-skis" className="btn btn-primary">Reservar agora</Link><a className="btn btn-ghost" href={waLink(whatsNumber(), 'Olá! Gostaria de reservar um Jet Ski com a Loca Jett Oficial.')} target="_blank" rel="noreferrer"><WaIcon size={16} /> Falar com um consultor</a></div>
           </Reveal>
         </div>
       </section>
@@ -145,17 +166,17 @@ export function JetSkis() {
     .sort((a, b) => (f.ord === 'preco' ? a.precoDiaria - b.precoDiaria : b.precoDiaria - a.precoDiaria))
   return (
     <>
-      <PageHead eyebrow="Catálogo" title="Jet Skis disponíveis" text="Escolha o modelo ideal para o seu passeio. Todos com coletes e orientação de segurança." />
+      <PageHead eyebrow="A frota" title={<>Jet Skis <em>disponíveis</em></>} text="Modelos novos de alta performance, entregues revisados, com coletes e orientação de segurança." />
       <section className="section" style={{ paddingTop: 40 }}>
         <div className="container">
-          <div className="flex wrap" style={{ marginBottom: 28 }}>
+          <div className="flex wrap" style={{ marginBottom: 40, gap: 10 }}>
             <button className={'chip ' + (!f.cat ? 'on' : '')} onClick={() => setF({ ...f, cat: '' })}>Todos</button>
             {cats.map((c) => <button key={c} className={'chip ' + (f.cat === c ? 'on' : '')} onClick={() => setF({ ...f, cat: c })}>{c}</button>)}
             <select className="input" style={{ width: 'auto' }} value={f.local} onChange={(e) => setF({ ...f, local: e.target.value })} aria-label="Filtrar por local"><option value="">Todos os locais</option>{db.locations.map((l) => <option key={l.id} value={l.id}>{l.nome}</option>)}</select>
             <select className="input" style={{ width: 'auto' }} value={f.cap} onChange={(e) => setF({ ...f, cap: +e.target.value })} aria-label="Capacidade"><option value={0}>Qualquer capacidade</option><option value={2}>2+ pessoas</option><option value={3}>3 pessoas</option></select>
             <select className="input" style={{ width: 'auto' }} value={f.ord} onChange={(e) => setF({ ...f, ord: e.target.value })} aria-label="Ordenar"><option value="preco">Menor preço</option><option value="-preco">Maior preço</option></select>
           </div>
-          {list.length ? <div className="grid g3">{list.map((j, i) => <JetCard key={j.id} jet={j} i={i} />)}</div> : <div className="empty card">Nenhum Jet Ski encontrado com esses filtros.</div>}
+          {list.length ? <div className="grid g3" style={{ gap: 32 }}>{list.map((j, i) => <JetCard key={j.id} jet={j} i={i} />)}</div> : <div className="empty card">Nenhum Jet Ski encontrado com esses filtros.</div>}
         </div>
       </section>
     </>
@@ -180,7 +201,7 @@ export function JetSkiDetail() {
   const add = (go) => {
     if (r.data && conflict) return toast('Período indisponível — escolha outra data')
     updateCart({ ...(sameCart || emptyCart()), jetId: jet.id, localId: jet.localId, ...r })
-    toast('🛒 Adicionado à Minha Reserva')
+    toast('Adicionado à sua reserva')
     go ? nav('/minha-reserva') : openCart()
   }
   const disabled = ['manutencao', 'indisponivel'].includes(jet.status)
@@ -188,24 +209,25 @@ export function JetSkiDetail() {
     <>
       <section className="page-head" style={{ paddingBottom: 40 }}>
         <div className="container">
-          <Link to="/jet-skis" className="small muted">← Voltar ao catálogo</Link>
-          <div className="grid g2" style={{ marginTop: 20, alignItems: 'start' }}>
+          <Link to="/jet-skis" className="back-link"><Icon name="back" size={14} /> Voltar à frota</Link>
+          <div className="grid g2" style={{ marginTop: 32, alignItems: 'start', gap: 'clamp(28px,5vw,72px)' }}>
             <div>
-              <div className="card" style={{ padding: 0, overflow: 'hidden', aspectRatio: '1/1' }}><JetPhoto jet={jet} i={view} fit="contain" /></div>
+              <div className="card" style={{ padding: 0, overflow: 'hidden', aspectRatio: '4/3' }}><JetPhoto jet={jet} i={view} fit="cover" /></div>
               {fotos.length > 1 && <div className="grid g4" style={{ gap: 8, marginTop: 8 }}>{fotos.map((f, v) => <button key={v} onClick={() => setView(v)} className="card" style={{ padding: 0, overflow: 'hidden', aspectRatio: '1/1', cursor: 'pointer', borderColor: view === v ? 'var(--primary)' : undefined }} aria-label={`Foto ${v + 1}`}><img src={f} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /></button>)}</div>}
             </div>
             <div>
               <JetBadge status={jet.status} />
-              <h1 style={{ fontSize: 'clamp(2rem,4vw,3rem)', marginTop: 12 }}>{jet.marca} {jet.modelo}</h1>
-              <p>{jet.descricao}</p>
-              <div className="flex wrap" style={{ gap: 20, margin: '16px 0', alignItems: 'flex-end' }}>
-                <div>{jet.precoOriginal > jet.precoDiaria && <small className="muted" style={{ textDecoration: 'line-through' }}>de {brl(jet.precoOriginal)}</small>}<div className="price" style={{ fontSize: '2.2rem' }}>{brl(jet.precoDiaria)}</div><small className="muted">por diária · mínimo 1 diária</small></div>
-                {jet.precoOriginal > jet.precoDiaria && <span className="badge tone-warning">Economize {brl(jet.precoOriginal - jet.precoDiaria)} por diária</span>}
+              <div className="jet-kicker" style={{ marginTop: 20 }}>{jet.marca}</div>
+              <h1 style={{ fontSize: 'clamp(2.6rem,5vw,4.2rem)', margin: '4px 0 16px' }}>{jet.modelo}</h1>
+              <p style={{ fontSize: '1.05rem', maxWidth: 520 }}>{jet.descricao}</p>
+              <div className="flex wrap" style={{ gap: 20, margin: '28px 0', alignItems: 'flex-end' }}>
+                <div>{jet.precoOriginal > jet.precoDiaria && <div className="price-old">{brl(jet.precoOriginal)}</div>}<div className="price" style={{ fontSize: '3rem' }}>{brl(jet.precoDiaria)}</div><small className="muted">por diária · mínimo de 1 diária</small></div>
+                {jet.precoOriginal > jet.precoDiaria && <span className="badge tone-accent">Condição especial</span>}
               </div>
-              <div className="specs" style={{ gridTemplateColumns: 'repeat(3,1fr)' }}>
-                {[['Ano', jet.ano], ['Categoria', jet.categoria], ['Potência', jet.potencia || '—'], ['Capacidade', jet.capacidade ? jet.capacidade + ' pessoas' : 'A confirmar'], ['Cor', jet.cor || '—'], ['Combustível', 'Não incluso'], ['Idade mínima', s.idadeMinima + ' anos'], ['Local', loc?.nome?.split(' — ')[0]], ['Entrada', s.entradaPct + '% na reserva']].map(([k, v]) => <div className="spec" key={k}><span>{k}</span><strong>{v}</strong></div>)}
+              <div className="specs-grid">
+                {[['Ano', jet.ano], ['Categoria', jet.categoria], ['Potência', jet.potencia || '—'], ['Capacidade', jet.capacidade ? jet.capacidade + ' pessoas' : 'Consulte'], ['Cor', jet.cor || '—'], ['Combustível', 'Não incluso'], ['Idade mínima', s.idadeMinima + ' anos'], ['Local', loc?.nome?.split(' — ')[0]], ['Entrada', s.entradaPct + '% na reserva']].map(([k, v]) => <div className="spec" key={k}><span>{k}</span><strong>{v}</strong></div>)}
               </div>
-              <a href="#reservar" className="btn btn-primary" style={{ marginTop: 20 }}>Reservar este Jet Ski ↓</a>
+              <a href="#reservar" className="btn btn-primary" style={{ marginTop: 28 }}>Reservar este Jet Ski <Icon name="down" size={15} /></a>
             </div>
           </div>
         </div>
@@ -214,28 +236,28 @@ export function JetSkiDetail() {
       <section className="section" style={{ paddingTop: 48 }}>
         <div className="container grid" style={{ gridTemplateColumns: 'minmax(0,1.4fr) minmax(0,1fr)', gap: 28 }} id="reservar">
           <div className="stack">
-            <div className="card"><h3>1. Escolha a data de início</h3>{disabled ? <p>Este Jet Ski está indisponível no momento. Escolha outro modelo.</p> : <Calendar jetId={jet.id} value={r.data} onChange={(data) => setR({ ...r, data, diarias: Math.min(r.diarias, Math.max(1, maxDiarias(jet.id, data))) })} />}</div>
-            <div className="card"><h3>2. Quantidade de diárias</h3>
+            <div className="card"><span className="eyebrow">Etapa 01</span><h3>Data de início</h3>{disabled ? <p>Este Jet Ski está indisponível no momento. Escolha outro modelo.</p> : <Calendar jetId={jet.id} value={r.data} onChange={(data) => setR({ ...r, data, diarias: Math.min(r.diarias, Math.max(1, maxDiarias(jet.id, data))) })} />}</div>
+            <div className="card"><span className="eyebrow">Etapa 02</span><h3>Quantidade de diárias</h3>
               <DiariasPicker jetId={jet.id} data={r.data} value={r.diarias} onChange={(diarias) => setR({ ...r, diarias })} />
               {conflict && <p className="err-msg" style={{ marginTop: 8 }}>Parte desse período já está reservada ou bloqueada.</p>}
               <p className="small muted" style={{ marginTop: 10 }}>Locação somente por diária. {s.horarioRetirada ? `Retirada: ${s.horarioRetirada}. ` : ''}{s.horarioDevolucao ? `Devolução: ${s.horarioDevolucao}.` : ''}</p>
             </div>
-            {db.services.some((x) => x.ativo) && <div className="card"><h3>3. Serviços adicionais</h3>
+            {db.services.some((x) => x.ativo) && <div className="card"><span className="eyebrow">Etapa 03</span><h3>Serviços adicionais</h3>
               <div className="grid g2" style={{ gap: 10 }}>{db.services.filter((x) => x.ativo).map((x) => (
                 <label key={x.id} className="card" style={{ padding: 14, cursor: 'pointer', borderColor: r.servicos.includes(x.id) ? 'var(--primary)' : undefined }}>
-                  <div className="flex between"><span>{x.icon} <strong>{x.nome}</strong></span><input type="checkbox" checked={r.servicos.includes(x.id)} onChange={() => toggle(x.id)} /></div>
+                  <div className="flex between"><strong>{x.nome}</strong><input type="checkbox" checked={r.servicos.includes(x.id)} onChange={() => toggle(x.id)} /></div>
                   <small className="muted">{x.descricao}</small><div style={{ fontWeight: 700, marginTop: 4 }}>{brl(x.preco)}</div>
                 </label>
               ))}</div>
             </div>}
             <div className="grid g2">
-              <div className="card"><h4>Características</h4><ul className="small" style={{ color: 'var(--text-secondary)', paddingLeft: 18 }}>{(jet.caracteristicas || []).map((c) => <li key={c}>{c}</li>)}</ul></div>
-              <div className="card"><h4>Regras e requisitos</h4><ul className="small" style={{ color: 'var(--text-secondary)', paddingLeft: 18 }}>{(jet.regras || []).map((c) => <li key={c}>{c}</li>)}{s.exigeHabilitacao && <li>{s.textoHabilitacao}</li>}<li>Documentos: {s.documentos || '[A DEFINIR]'}</li></ul></div>
+              <div className="card"><h4>Características</h4><ul className="check-list">{(jet.caracteristicas || []).map((c) => <li key={c}>{c}</li>)}</ul></div>
+              <div className="card"><h4>Regras e requisitos</h4><ul className="check-list">{(jet.regras || []).map((c) => <li key={c}>{c}</li>)}{s.exigeHabilitacao && <li>{s.textoHabilitacao}</li>}{s.documentos && <li>Documentos: {s.documentos}</li>}</ul></div>
             </div>
           </div>
           <aside>
             <div className="card" style={{ position: 'sticky', top: 96 }}>
-              <h3>Resumo</h3>
+              <span className="eyebrow">Resumo</span>
               <div className="line"><span>Início</span><strong>{r.data ? fmtDate(r.data) : '—'}</strong></div>
               <div className="line"><span>Término</span><strong>{r.data ? fmtDate(rangeEnd(r.data, r.diarias)) : '—'}</strong></div>
               <div className="line"><span>Diárias</span><strong>{r.diarias}</strong></div>
@@ -244,11 +266,11 @@ export function JetSkiDetail() {
               {p.adicionais > 0 && <div className="line"><span>Adicionais</span><strong>{brl(p.adicionais)}</strong></div>}
               {p.economia > 0 && <div className="line"><span className="small">Você economiza</span><strong className="small" style={{ color: 'var(--success)' }}>{brl(p.economia)}</strong></div>}
               <div className="total" style={{ marginTop: 8 }}><span>Total</span><span>{brl(p.total)}</span></div>
-              <div className="line"><span>Entrada ({p.entradaPct}%) via Pix ou cartão</span><strong style={{ color: 'var(--primary)' }}>{brl(p.entrada)}</strong></div>
+              <div className="line"><span>Sinal ({p.entradaPct}%) · Pix ou cartão</span><strong style={{ color: 'var(--primary)' }}>{brl(p.entrada)}</strong></div>
               <div className="stack" style={{ marginTop: 16 }}>
-                <button className="btn btn-primary btn-block" disabled={disabled} onClick={() => add(true)}>Continuar reserva →</button>
-                <button className="btn btn-ghost btn-block" disabled={disabled} onClick={() => add(false)}>🛒 Adicionar à Minha Reserva</button>
-                <a className="btn btn-wa btn-block btn-sm" href={waLink(whatsNumber(), `Olá! Tenho interesse no Jet Ski ${jet.marca} ${jet.modelo}. Pode me passar mais informações?`)} target="_blank" rel="noreferrer"><WaIcon size={16} /> Tirar dúvidas no WhatsApp</a>
+                <button className="btn btn-primary btn-block" disabled={disabled} onClick={() => add(true)}>Continuar reserva</button>
+                <button className="btn btn-ghost btn-block" disabled={disabled} onClick={() => add(false)}>Adicionar à reserva</button>
+                <a className="btn btn-wa btn-block btn-sm" href={waLink(whatsNumber(), `Olá! Tenho interesse no Jet Ski ${jet.marca} ${jet.modelo}. Pode me passar mais informações?`)} target="_blank" rel="noreferrer"><WaIcon size={15} /> Falar com um consultor</a>
               </div>
             </div>
           </aside>
@@ -259,17 +281,19 @@ export function JetSkiDetail() {
   )
 }
 
+const EXP_PHOTOS = [PHOTOS.hero, PHOTOS.action, PHOTOS.sunset]
+
 export function Experiencias() {
   const db = useDB()
   return (
     <>
-      <PageHead eyebrow="Experiências" title="Escolha o seu momento na água" text="Experiências configuráveis pela equipe Loca Jett. Selecione uma e escolha o Jet Ski." />
-      <section className="section" style={{ paddingTop: 48 }}><div className="container grid g3">
+      <PageHead eyebrow="Experiências" title={<>Escolha o seu <em>momento</em> na água</>} text="Formatos pensados para cada ocasião. Selecione uma experiência e, em seguida, o Jet Ski." />
+      <section className="section" style={{ paddingTop: 64 }}><div className="container grid g3" style={{ gap: 32 }}>
         {db.experiences.filter((e) => e.ativo).map((e, i) => (
-          <Reveal key={e.id} delay={i * 60} className="card card-hover" style={{ padding: 0, overflow: 'hidden' }}>
-            <div style={{ aspectRatio: '16/9' }}><JetArt hue={(i * 47 + 180) % 360} /></div>
-            <div style={{ padding: 22 }}><div style={{ fontSize: 30 }}>{e.icon}</div><h3>{e.nome}</h3><p>{e.descricao}</p>
-              <div className="flex between"><strong>{e.preco ? '+ ' + brl(e.preco) : 'Incluso'}</strong><Link to="/jet-skis" className="btn btn-primary btn-sm" onClick={() => updateCart({ ...(getDB().cart || emptyCart()), experienciaId: e.id })}>Escolher</Link></div></div>
+          <Reveal key={e.id} delay={i * 80} className="card card-hover" style={{ padding: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+            <div className="photo" style={{ aspectRatio: '4/3' }}><img src={EXP_PHOTOS[i % EXP_PHOTOS.length]} alt="" loading="lazy" /></div>
+            <div style={{ padding: 28, display: 'flex', flexDirection: 'column', flex: 1 }}><span className="eyebrow">{String(i + 1).padStart(2, '0')}</span><h3>{e.nome}</h3><p>{e.descricao}</p>
+              <div className="flex between" style={{ marginTop: 'auto', paddingTop: 12 }}><span className="jet-kicker">{e.preco ? '+ ' + brl(e.preco) : 'Incluso na diária'}</span><Link to="/jet-skis" className="btn btn-primary btn-sm" onClick={() => updateCart({ ...(getDB().cart || emptyCart()), experienciaId: e.id })}>Escolher</Link></div></div>
           </Reveal>
         ))}
       </div></section>
@@ -279,53 +303,46 @@ export function Experiencias() {
 
 export function ComoFunciona() {
   const s = useDB().settings
-  const steps = [['🌊', 'Escolha o Jet Ski', 'Compare modelos, potência e o valor da diária.'], ['📅', 'Escolha a data', 'O calendário mostra apenas os dias disponíveis — sem conflitos.'], ['🗓️', 'Defina as diárias', `Locação somente por diária (mínimo 1). O total é calculado na hora.`], ['📝', 'Preencha seus dados', `Titular com ${s.idadeMinima} anos ou mais. Dados protegidos (LGPD).`], ['💳', `Pague ${s.entradaPct}% de entrada`, 'Via Pix ou cartão para confirmar a reserva.'], ['💬', 'Finalize pelo WhatsApp', 'Sua reserva recebe um número (LJ-XXXXXX) e a mensagem vai pronta.'], ['🤝', 'Atendimento Loca Jett', 'Nossa equipe confirma e combina retirada e devolução.'], ['🏁', 'Aproveite a água', 'Restante pago conforme combinado.']]
-  const ph = (v) => v || '[A DEFINIR]'
+  const steps = [['Escolha o Jet Ski', 'Compare modelos, potência e o valor da diária.'], ['Escolha a data', 'O calendário mostra apenas os dias disponíveis — sem conflitos.'], ['Defina as diárias', 'Locação por diária, com mínimo de uma. O total é calculado na hora.'], ['Seus dados', `Titular com ${s.idadeMinima} anos ou mais. Dados protegidos conforme a LGPD.`], [`Sinal de ${s.entradaPct}%`, 'Via Pix ou cartão para confirmar a sua data.'], ['Finalize pelo WhatsApp', 'Sua reserva recebe um código (LJ-XXXXXX) e a mensagem segue pronta.'], ['Atendimento Loca Jett', 'Nossa equipe confirma e combina retirada e devolução.'], ['Aproveite', 'O restante é pago conforme combinado.']]
+  const req = [`Idade mínima: ${s.idadeMinima} anos`, s.exigeHabilitacao && s.textoHabilitacao, s.documentos && `Documentos: ${s.documentos}`, s.seguranca && s.seguranca].filter(Boolean)
+  const rules = ['Locação por diária — mínimo de 1 diária', `Sinal de ${s.entradaPct}% para confirmar (Pix ou cartão)`, 'Combustível não incluso', (s.horarioRetirada || s.horarioDevolucao) && `Retirada: ${s.horarioRetirada || 'a combinar'} · Devolução: ${s.horarioDevolucao || 'a combinar'}`, s.diasFuncionamento && `Funcionamento: ${s.diasFuncionamento}`, s.cancelamento && `Cancelamento: ${s.cancelamento}`, s.chuva && `Chuva / mau tempo: ${s.chuva}`].filter(Boolean)
   return (
     <>
-      <PageHead eyebrow="Como funciona" title="Simples, rápido e seguro" text="Do clique até a água em poucos passos." />
-      <section className="section" style={{ paddingTop: 48 }}><div className="container grid g4">
-        {steps.map(([ic, t, d], i) => <Reveal key={t} delay={i * 50} className="card"><span className="badge tone-accent">{String(i + 1).padStart(2, '0')}</span><div style={{ fontSize: 30, marginTop: 12 }}>{ic}</div><h4 style={{ marginTop: 8 }}>{t}</h4><p className="small">{d}</p></Reveal>)}
-      </div>
-      <div className="container grid g2" style={{ marginTop: 48 }}>
-        <div className="card"><h3>Requisitos para pilotar</h3><ul style={{ color: 'var(--text-secondary)' }}><li>Idade mínima: {s.idadeMinima} anos</li>{s.exigeHabilitacao && <li>{s.textoHabilitacao}</li>}<li>Documentos: {ph(s.documentos)}</li><li>Segurança: {ph(s.seguranca)}</li></ul></div>
-        <div className="card"><h3>Regras da locação</h3><ul style={{ color: 'var(--text-secondary)' }}><li>Somente por diária — mínimo 1 diária</li><li>Entrada de {s.entradaPct}% para confirmar (Pix ou cartão)</li><li>Combustível não incluso</li><li>Retirada: {ph(s.horarioRetirada)} · Devolução: {ph(s.horarioDevolucao)}</li><li>Funcionamento: {ph(s.diasFuncionamento)}</li><li>Cancelamento: {ph(s.cancelamento)}</li><li>Chuva / mau tempo: {ph(s.chuva)}</li></ul></div>
-      </div>
-      </section>
+      <PageHead eyebrow="Como funciona" title={<>Simples, ágil e <em>seguro</em></>} text="Do primeiro clique até a água, com acompanhamento da nossa equipe em cada etapa." />
+      <section className="section" style={{ paddingTop: 48 }}><div className="container">
+        <div className="numbered" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))' }}>
+          {steps.map(([t, d], i) => <Reveal key={t} delay={i * 50}><span className="n">{String(i + 1).padStart(2, '0')}</span><h4>{t}</h4><p>{d}</p></Reveal>)}
+        </div>
+        <div className="grid g2" style={{ marginTop: 80, gap: 32 }}>
+          <div className="card"><span className="eyebrow">Requisitos</span><h3>Para pilotar</h3><ul className="check-list">{req.map((x) => <li key={x}>{x}</li>)}</ul></div>
+          <div className="card"><span className="eyebrow">Condições</span><h3>Regras da locação</h3><ul className="check-list">{rules.map((x) => <li key={x}>{x}</li>)}</ul></div>
+        </div>
+      </div></section>
     </>
   )
 }
 
-const REGIONS = [
-  { id: 'Norte', d: 'M150 20 L330 30 L360 120 L250 150 L140 120Z', c: 'hsl(198 80% 45%)' },
-  { id: 'Oeste', d: 'M40 120 L140 120 L250 150 L230 260 L90 290 L30 210Z', c: 'hsl(210 80% 45%)' },
-  { id: 'Centro', d: 'M250 150 L360 120 L400 210 L320 260 L230 260Z', c: 'hsl(190 85% 50%)' },
-  { id: 'Leste', d: 'M360 120 L470 140 L480 260 L400 210Z', c: 'hsl(220 75% 50%)' },
-  { id: 'Sul', d: 'M90 290 L230 260 L320 260 L400 210 L480 260 L420 360 L180 380Z', c: 'hsl(205 70% 40%)' },
-]
+const REGIONS = ['Norte', 'Oeste', 'Centro', 'Leste', 'Sul']
 export function Locais() {
   const db = useDB()
   const [reg, setReg] = useState('')
-  const locs = db.locations.filter((l) => l.ativo && (!reg || l.regiao === reg))
+  const all = db.locations.filter((l) => l.ativo)
+  const locs = all.filter((l) => !reg || l.regiao === reg)
+  const regions = REGIONS.filter((r) => all.some((l) => l.regiao === r))
   return (
     <>
-      <PageHead eyebrow="Área de atuação" title="Locais em todo o estado de Goiás" text="Selecione uma região do mapa para ver os pontos de embarque. Mapa esquemático." />
-      <section className="section" style={{ paddingTop: 48 }}>
-        <div className="container grid g2" style={{ alignItems: 'start' }}>
-          <div className="card">
-            <svg viewBox="0 0 520 400" role="img" aria-label="Mapa esquemático das regiões de Goiás">
-              {REGIONS.map((r) => <g key={r.id} className="map-region" onClick={() => setReg(reg === r.id ? '' : r.id)}>
-                <path d={r.d} fill={r.c} opacity={!reg || reg === r.id ? 0.9 : 0.25} stroke="#030E1C" strokeWidth="3" />
-              </g>)}
-              {REGIONS.map((r) => { const pts = r.d.match(/\d+ \d+/g).map((p) => p.split(' ').map(Number)); const cx = pts.reduce((a, p) => a + p[0], 0) / pts.length, cy = pts.reduce((a, p) => a + p[1], 0) / pts.length; const n = db.locations.filter((l) => l.regiao === r.id && l.ativo).length; return <g key={r.id + 't'} pointerEvents="none"><text x={cx} y={cy} textAnchor="middle" fill="#fff" fontWeight="700" fontSize="15">{r.id}</text>{n > 0 && <text x={cx} y={cy + 18} textAnchor="middle" fill="#FFD9A0" fontSize="12">📍 {n} local(is)</text>}</g> })}
-            </svg>
-            <div className="flex wrap" style={{ marginTop: 12 }}><button className={'chip ' + (!reg ? 'on' : '')} onClick={() => setReg('')}>Todas</button>{REGIONS.map((r) => <button key={r.id} className={'chip ' + (reg === r.id ? 'on' : '')} onClick={() => setReg(r.id)}>{r.id}</button>)}</div>
-          </div>
-          <div className="stack">
-            {locs.length ? locs.map((l) => {
+      <PageHead eyebrow="Área de atuação" title={<>Em todo o estado de <em>Goiás</em></>} text="Atendemos de norte a sul do estado. Consulte os pontos de embarque e a disponibilidade para o seu destino." />
+      <section className="section" style={{ paddingTop: 64 }}>
+        <div className="container split" style={{ alignItems: 'start' }}>
+          <Reveal className="photo" style={{ aspectRatio: '4/5' }}><img src={PHOTOS.sunset} alt="Jet Ski ao pôr do sol em um lago" loading="lazy" /></Reveal>
+          <div>
+            {regions.length > 1 && <div className="flex wrap" style={{ marginBottom: 24, gap: 8 }}><button className={'chip ' + (!reg ? 'on' : '')} onClick={() => setReg('')}>Todas</button>{regions.map((r) => <button key={r} className={'chip ' + (reg === r ? 'on' : '')} onClick={() => setReg(r)}>{r}</button>)}</div>}
+            {locs.map((l) => {
               const jets = db.jetskis.filter((j) => j.localId === l.id)
-              return <div key={l.id} className="card"><span className="badge tone-accent">{l.regiao}</span><h3 style={{ marginTop: 10 }}>{l.nome}</h3><p className="small">{l.descricao}</p><p className="small muted">{jets.filter((j) => j.status === 'disponivel').length} de {jets.length} Jet Skis disponíveis</p><Link to={'/jet-skis?local=' + l.id} className="btn btn-primary btn-sm">Ver Jet Skis deste local</Link></div>
-            }) : <div className="card empty">Nenhum local cadastrado nesta região ainda. {PH('CIDADES ATENDIDAS')}</div>}
+              const desc = clean(l.descricao)
+              return <div key={l.id} style={{ padding: '28px 0', borderBottom: '1px solid var(--border)' }}><span className="jet-kicker">Região {l.regiao}</span><h3 style={{ margin: '8px 0 10px', fontSize: '2rem' }}>{l.nome}</h3>{desc && <p>{desc}</p>}<p className="small muted">{jets.filter((j) => j.status === 'disponivel').length} de {jets.length} Jet Skis disponíveis neste ponto</p><Link to={'/jet-skis?local=' + l.id} className="link-arrow">Ver Jet Skis deste local <Icon name="arrow" size={14} /></Link></div>
+            })}
+            <div className="card" style={{ marginTop: 32 }}><h4>Seu destino não está na lista?</h4><p className="small">Levamos a experiência até outros lagos e represas de Goiás mediante consulta.</p><a className="btn btn-ghost btn-sm" href={waLink(whatsNumber(), 'Olá! Gostaria de consultar a locação de Jet Ski para outra cidade/lago em Goiás.')} target="_blank" rel="noreferrer"><WaIcon size={14} /> Consultar destino</a></div>
           </div>
         </div>
       </section>
@@ -336,11 +353,15 @@ export function Locais() {
 export function Sobre() {
   return (
     <>
-      <PageHead eyebrow="Sobre nós" title="Loca Jett Oficial" text="Locação de Jet Skis e experiências náuticas em todo o estado de Goiás." />
-      <section className="section" style={{ paddingTop: 48 }}><div className="container grid g2" style={{ alignItems: 'center' }}>
-        <Reveal><h2>Liberdade, velocidade e segurança na água</h2><p>A Loca Jett Oficial nasceu para transformar um dia comum em uma experiência inesquecível. Cuidamos de tudo — do equipamento à orientação — para você só se preocupar em aproveitar.</p><p className="muted">{PH('HISTÓRIA DA EMPRESA')}</p>
-          <div className="grid g3" style={{ marginTop: 24 }}>{[['🛟', 'Segurança'], ['⭐', 'Premium'], ['🤝', 'Atendimento']].map(([i, t]) => <div className="card" key={t} style={{ textAlign: 'center', padding: 16 }}><div style={{ fontSize: 26 }}>{i}</div><strong>{t}</strong></div>)}</div></Reveal>
-        <Reveal delay={150} className="card" style={{ padding: 0, overflow: 'hidden', aspectRatio: '4/3' }}><JetArt hue={30} /></Reveal>
+      <PageHead eyebrow="A Loca Jett" title={<>Liberdade, performance e <em>cuidado</em></>} text="Locação de Jet Skis e experiências náuticas em todo o estado de Goiás." />
+      <section className="section" style={{ paddingTop: 64 }}><div className="container split">
+        <Reveal>
+          <p className="quote">“Transformar um dia comum em uma lembrança inesquecível — com segurança, equipamentos impecáveis e atendimento à altura.”</p>
+          <div className="divider" style={{ margin: '36px 0' }} />
+          <p>A Loca Jett Oficial nasceu para oferecer uma experiência de locação diferente: frota nova, processos claros e um atendimento próximo, do primeiro contato à devolução. Cuidamos de cada detalhe para que você só precise aproveitar.</p>
+          <div className="numbered" style={{ marginTop: 32 }}>{[['Segurança', 'Orientação antes de cada saída e equipamentos obrigatórios.'], ['Excelência', 'Jet Skis revisados e entregues em perfeito estado.'], ['Atendimento', 'Contato direto e personalizado com a nossa equipe.']].map(([t, d], i) => <div key={t}><span className="n">{String(i + 1).padStart(2, '0')}</span><h4>{t}</h4><p>{d}</p></div>)}</div>
+        </Reveal>
+        <Reveal delay={150} className="photo" style={{ aspectRatio: '4/5' }}><img src={PHOTOS.hero} alt="Jet Skis ao pôr do sol" loading="lazy" /></Reveal>
       </div></section>
     </>
   )
@@ -360,22 +381,27 @@ export function Contato() {
     if (Object.keys(er).length) return
     window.open(waLink(whatsNumber(), `Olá! Sou ${f.nome} (${f.email}).\n\n${f.msg}`), '_blank')
   }
-  const ph = (v, c) => v || PH(c)
+  const rows = [
+    ['phone', 'WhatsApp', s.telefone || SITE.telefone, waLink(whatsNumber(), 'Olá! Vim pelo site da Loca Jett.')],
+    s.instagram && ['insta', 'Instagram', s.instagram, s.instagramUrl],
+    (s.endereco || s.cidade) && ['pin', 'Localização', [s.endereco, s.cidade].filter(Boolean).join(' — '), s.mapsUrl],
+    ['clock', 'Atendimento', s.diasFuncionamento || 'Mediante agendamento'],
+    (s.horarioRetirada || s.horarioDevolucao) && ['calendar', 'Retirada / devolução', `${s.horarioRetirada || 'a combinar'} / ${s.horarioDevolucao || 'a combinar'}`],
+  ].filter(Boolean)
   return (
     <>
-      <PageHead eyebrow="Contato" title="Fale com a Loca Jett" text="Tire dúvidas, peça orçamento para grupos, pacotes sob medida ou informações sobre Jet Skis à venda." />
-      <section className="section" style={{ paddingTop: 48 }}><div className="container grid g2" style={{ alignItems: 'start' }}>
-        <form className="card stack" onSubmit={send} noValidate>
+      <PageHead eyebrow="Contato" title={<>Fale com a <em>Loca Jett</em></>} text="Dúvidas, grupos, pacotes sob medida ou Jet Skis à venda — nossa equipe responde pessoalmente." />
+      <section className="section" style={{ paddingTop: 64 }}><div className="container split" style={{ alignItems: 'start' }}>
+        <form className="card stack" onSubmit={send} noValidate style={{ padding: 'clamp(24px,4vw,44px)' }}>
+          <h3 style={{ marginBottom: 12 }}>Envie uma mensagem</h3>
           <Field label="Nome" id="c-n" error={err.nome}><input id="c-n" className={'input ' + (err.nome ? 'err' : '')} value={f.nome} onChange={(e) => setF({ ...f, nome: e.target.value })} /></Field>
           <Field label="E-mail" id="c-e" error={err.email}><input id="c-e" type="email" className={'input ' + (err.email ? 'err' : '')} value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} /></Field>
           <Field label="Mensagem" id="c-m" error={err.msg}><textarea id="c-m" rows={5} className={'input ' + (err.msg ? 'err' : '')} value={f.msg} onChange={(e) => setF({ ...f, msg: e.target.value })} /></Field>
-          <button className="btn btn-wa"><WaIcon size={18} /> Enviar pelo WhatsApp</button>
+          <button className="btn btn-primary" style={{ marginTop: 20 }}>Enviar pelo WhatsApp</button>
         </form>
-        <div className="stack">
-          <a className="card flex" style={{ padding: 16 }} href={waLink(whatsNumber(), 'Olá! Vim pelo site da Loca Jett.')} target="_blank" rel="noreferrer"><span style={{ fontSize: 24 }}>💬</span><div><strong>WhatsApp</strong><div className="small muted">{ph(s.telefone, 'WHATSAPP')}</div></div></a>
-          <a className="card flex" style={{ padding: 16 }} href={s.instagramUrl || '#'} target="_blank" rel="noreferrer"><span style={{ fontSize: 24 }}>📸</span><div><strong>Instagram</strong><div className="small muted">{ph(s.instagram, 'INSTAGRAM')}</div></div></a>
-          {[['📍', 'Endereço', ph(s.endereco, 'ENDEREÇO') + (s.cidade ? ' — ' + s.cidade : '')], ['🕒', 'Retirada / devolução', `${ph(s.horarioRetirada, 'HORÁRIO')} / ${ph(s.horarioDevolucao, 'HORÁRIO')}`], ['📆', 'Dias de funcionamento', ph(s.diasFuncionamento, 'DIAS')]].map(([i, t, v]) => <div key={t} className="card flex" style={{ padding: 16 }}><span style={{ fontSize: 24 }}>{i}</span><div><strong>{t}</strong><div className="small muted">{v}</div></div></div>)}
-          {s.mapsUrl && <a className="btn btn-ghost" href={s.mapsUrl} target="_blank" rel="noreferrer">🗺️ Ver no Google Maps</a>}
+        <div>
+          {rows.map(([ic, t, v, href]) => <div key={t} className="info-row"><Icon name={ic} size={20} /><div><strong>{t}</strong>{href ? <a href={href} target="_blank" rel="noreferrer">{v}</a> : <span>{v}</span>}</div></div>)}
+          {s.mapsUrl && <a className="btn btn-ghost" style={{ marginTop: 24 }} href={s.mapsUrl} target="_blank" rel="noreferrer"><Icon name="map" size={15} /> Ver no Google Maps</a>}
         </div>
       </div></section>
     </>
@@ -387,19 +413,19 @@ export function Venda() {
   const list = (db.sales || []).filter((x) => x.status !== 'oculto')
   return (
     <>
-      <PageHead eyebrow="Venda de Jet Skis" title="Jet Skis à venda" text="Seminovos e oportunidades selecionadas pela Loca Jett. Fale com a gente no WhatsApp para negociar." />
-      <section className="section" style={{ paddingTop: 40 }}><div className="container">
-        {list.length ? <div className="grid g3">{list.map((x, i) => (
+      <PageHead eyebrow="Venda de Jet Skis" title={<>Jet Skis <em>à venda</em></>} text="Seminovos e oportunidades selecionadas pela Loca Jett. Negocie diretamente com a nossa equipe." />
+      <section className="section" style={{ paddingTop: 56 }}><div className="container">
+        {list.length ? <div className="grid g3" style={{ gap: 32 }}>{list.map((x, i) => (
           <Reveal key={x.id} delay={i * 60} className="card card-hover jet-card">
             <Link to={'/venda/' + x.id} className="jet-media" style={{ aspectRatio: '4/3' }}><JetPhoto jet={x} /><Badge status={x.status || 'disponivel'} map={SALE_STATUS} /></Link>
             <div className="jet-body">
-              <div><small className="muted">{x.marca} · {x.ano}</small><h3 style={{ margin: '2px 0 0' }}>{x.modelo}</h3></div>
+              <div><span className="jet-kicker">{[x.marca, x.ano].filter(Boolean).join(' · ')}</span><h3 style={{ margin: '6px 0 0', fontSize: '2rem' }}>{x.modelo}</h3></div>
               <div className="specs"><div className="spec"><span>Ano</span><strong>{x.ano || '—'}</strong></div><div className="spec"><span>Horas</span><strong>{x.horasUso ?? '—'}</strong></div><div className="spec"><span>Estado</span><strong>{x.estado || '—'}</strong></div></div>
-              <div className="price" style={{ marginTop: 'auto' }}>{x.preco ? brl(x.preco) : 'Consulte'}</div>
-              <div className="grid g2" style={{ gap: 8 }}><Link to={'/venda/' + x.id} className="btn btn-ghost btn-sm">Ver detalhes</Link><a className="btn btn-wa btn-sm" target="_blank" rel="noreferrer" href={waLink(whatsNumber(), `Olá! Tenho interesse no Jet Ski à venda: ${x.marca || ''} ${x.modelo} ${x.ano || ''}.`)}>Tenho interesse</a></div>
+              <div className="price" style={{ marginTop: 'auto' }}>{x.preco ? brl(x.preco) : 'Sob consulta'}</div>
+              <div className="grid g2" style={{ gap: 8 }}><Link to={'/venda/' + x.id} className="btn btn-ghost btn-sm">Detalhes</Link><a className="btn btn-primary btn-sm" target="_blank" rel="noreferrer" href={waLink(whatsNumber(), `Olá! Tenho interesse no Jet Ski à venda: ${x.marca || ''} ${x.modelo} ${x.ano || ''}.`)}>Tenho interesse</a></div>
             </div>
           </Reveal>
-        ))}</div> : <div className="card empty"><div style={{ fontSize: 42 }}>🚤</div><p>Em breve novos Jet Skis à venda.<br />Quer comprar ou vender um Jet Ski? Fale com a gente.</p><a className="btn btn-wa" target="_blank" rel="noreferrer" href={waLink(whatsNumber(), 'Olá! Quero informações sobre Jet Skis à venda.')}><WaIcon size={18} /> Falar no WhatsApp</a></div>}
+        ))}</div> : <div className="card empty" style={{ padding: 'clamp(40px,6vw,80px) 24px' }}><h3 className="serif" style={{ color: 'var(--text)' }}>Novas oportunidades em breve</h3><p style={{ maxWidth: 440, margin: '0 auto 24px' }}>Deseja comprar ou vender um Jet Ski? Fale com a nossa equipe e receba as próximas ofertas em primeira mão.</p><a className="btn btn-primary" target="_blank" rel="noreferrer" href={waLink(whatsNumber(), 'Olá! Gostaria de informações sobre Jet Skis à venda.')}>Falar com um consultor</a></div>}
       </div></section>
     </>
   )
@@ -410,22 +436,23 @@ export function VendaDetalhe() {
   const db = useDB()
   const [view, setView] = useState(0)
   const x = (db.sales || []).find((s) => s.id === id)
-  if (!x) return <PageHead eyebrow="Ops" title="Anúncio não encontrado" />
+  if (!x) return <PageHead eyebrow="Venda" title="Anúncio não encontrado" />
   const fotos = x.fotos || []
   return (
     <section className="page-head"><div className="container">
-      <Link to="/venda" className="small muted">← Voltar para Jet Skis à venda</Link>
-      <div className="grid g2" style={{ marginTop: 20, alignItems: 'start' }}>
-        <div><div className="card" style={{ padding: 0, overflow: 'hidden', aspectRatio: '4/3' }}><JetPhoto jet={x} i={view} fit="contain" /></div>
+      <Link to="/venda" className="back-link"><Icon name="back" size={14} /> Voltar para Jet Skis à venda</Link>
+      <div className="grid g2" style={{ marginTop: 32, alignItems: 'start', gap: 'clamp(28px,5vw,72px)' }}>
+        <div><div className="card" style={{ padding: 0, overflow: 'hidden', aspectRatio: '4/3' }}><JetPhoto jet={x} i={view} fit="cover" /></div>
           {fotos.length > 1 && <div className="grid g4" style={{ gap: 8, marginTop: 8 }}>{fotos.map((f, v) => <button key={v} onClick={() => setView(v)} className="card" style={{ padding: 0, overflow: 'hidden', aspectRatio: '1/1', cursor: 'pointer', borderColor: view === v ? 'var(--primary)' : undefined }} aria-label={`Foto ${v + 1}`}><img src={f} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /></button>)}</div>}</div>
         <div className="stack">
-          <Badge status={x.status || 'disponivel'} map={SALE_STATUS} />
-          <h1 style={{ fontSize: 'clamp(2rem,4vw,3rem)', margin: 0 }}>{x.marca} {x.modelo}</h1>
-          <div className="price" style={{ fontSize: '2.2rem' }}>{x.preco ? brl(x.preco) : 'Preço sob consulta'}</div>
+          <div><Badge status={x.status || 'disponivel'} map={SALE_STATUS} /></div>
+          <div className="jet-kicker">{x.marca}</div>
+          <h1 style={{ fontSize: 'clamp(2.6rem,5vw,4.2rem)', margin: 0 }}>{x.modelo}</h1>
+          <div className="price" style={{ fontSize: '3rem' }}>{x.preco ? brl(x.preco) : 'Preço sob consulta'}</div>
           <div className="specs">{[['Ano', x.ano], ['Horas de uso', x.horasUso], ['Estado', x.estado]].map(([k, v]) => <div key={k} className="spec"><span>{k}</span><strong>{v ?? '—'}</strong></div>)}</div>
           {x.descricao && <p>{x.descricao}</p>}
           {x.info && <div className="card small" style={{ whiteSpace: 'pre-line' }}><strong>Informações adicionais</strong><br />{x.info}</div>}
-          <a className="btn btn-wa" target="_blank" rel="noreferrer" href={waLink(whatsNumber(), `Olá! Tenho interesse no Jet Ski à venda: ${x.marca || ''} ${x.modelo} ${x.ano || ''} (${x.preco ? brl(x.preco) : 'preço sob consulta'}).`)}><WaIcon size={18} /> Tenho interesse — falar no WhatsApp</a>
+          <a className="btn btn-primary" target="_blank" rel="noreferrer" href={waLink(whatsNumber(), `Olá! Tenho interesse no Jet Ski à venda: ${x.marca || ''} ${x.modelo} ${x.ano || ''} (${x.preco ? brl(x.preco) : 'preço sob consulta'}).`)}><WaIcon size={16} /> Tenho interesse</a>
         </div>
       </div>
     </div></section>

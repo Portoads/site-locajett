@@ -61,7 +61,7 @@ export function Cadastro() {
     const c = exist ? { ...exist, senhaHash } : { id: 'c' + Date.now().toString(36), nome: f.nome.trim(), email: f.email.trim(), telefone: f.telefone, whatsapp: '55' + f.telefone.replace(/\D/g, ''), cpf: f.cpf, cidade: '', estado: 'GO', status: 'ativo', createdAt: today(), pontos: 0, refCode: 'AMIGO-' + Math.random().toString(36).slice(2, 7).toUpperCase(), indicadoPor: ref?.id, senhaHash }
     upsert('clients', c)
     setDB((dd) => ({ session: { ...dd.session, clientId: c.id } }))
-    toast('Conta criada! Bem-vindo à Loca Jett 🌊')
+    toast('Conta criada. Bem-vindo à Loca Jett.')
     nav('/cliente')
   }
   const inp = (k, label, type = 'text', ac) => <Field label={label} id={'r-' + k} error={err[k]}><input id={'r-' + k} type={type} className={'input ' + (err[k] ? 'err' : '')} value={f[k]} onChange={(e) => setF({ ...f, [k]: e.target.value })} autoComplete={ac} /></Field>
@@ -90,9 +90,9 @@ export function ClienteLayout() {
   if (!me) return <Navigate to="/login?next=/cliente" replace />
   return (
     <>
-      <PageHead eyebrow={`Nível ${tier(me.pontos || 0)} · ${me.pontos || 0} pontos`} title={`Olá, ${me.nome.split(' ')[0]} 🌊`} />
+      <PageHead eyebrow={`Nível ${tier(me.pontos || 0)} · ${me.pontos || 0} pontos`} title={`Olá, ${me.nome.split(' ')[0]}`} />
       <section className="section" style={{ paddingTop: 24 }}><div className="container">
-        <div className="flex wrap" style={{ marginBottom: 24 }}>{CLI_LINKS.map(([to, l, i]) => <NavLink key={to} to={to} end className={({ isActive }) => 'chip ' + (isActive ? 'on' : '')}>{i} {l}</NavLink>)}<button className="chip" onClick={() => setDB((d) => ({ session: { ...d.session, clientId: null } }))}>Sair</button></div>
+        <div className="flex wrap" style={{ marginBottom: 24 }}>{CLI_LINKS.map(([to, l, i]) => <NavLink key={to} to={to} end className={({ isActive }) => 'chip ' + (isActive ? 'on' : '')}>{l}</NavLink>)}<button className="chip" onClick={() => setDB((d) => ({ session: { ...d.session, clientId: null } }))}>Sair</button></div>
         <Outlet context={me} />
       </div></section>
     </>
@@ -175,13 +175,13 @@ export function ClienteContratos() {
   const [db, me] = useMe()
   const [view, setView] = useState(null)
   const list = db.contracts.filter((c) => c.clientId === me.id)
-  const sign = (c) => { upsert('contracts', { ...c, assinadoCliente: new Date().toISOString(), status: 'assinado' }); toast('Contrato assinado digitalmente ✍️'); setView(null) }
+  const sign = (c) => { upsert('contracts', { ...c, assinadoCliente: new Date().toISOString(), status: 'assinado' }); toast('Contrato assinado digitalmente'); setView(null) }
   return (
     <div className="card"><h3>Meus contratos</h3>
       {list.length ? <div className="table-wrap"><table><thead><tr><th>Reserva</th><th>Gerado em</th><th>Status</th><th></th></tr></thead><tbody>{list.map((c) => <tr key={c.id}><td>{c.reservaId}</td><td>{fmtDate(c.criado?.slice(0, 10))}</td><td><span className={'badge tone-' + (c.status === 'assinado' ? 'success' : 'warning')}>{c.status === 'assinado' ? 'Assinado' : 'Aguardando assinatura'}</span></td><td><button className="btn btn-ghost btn-sm" onClick={() => setView(c)}>Abrir</button></td></tr>)}</tbody></table></div> : <div className="empty">Os contratos aparecem aqui após a confirmação da reserva.</div>}
       <Modal open={!!view} onClose={() => setView(null)} title={`Contrato — ${view?.reservaId}`} width="820px">
         {view && <><pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'var(--font-body)', fontSize: '.85rem', color: 'var(--text-secondary)' }}>{contractText(getDB(), view.reservaId)}</pre>
-          <div className="flex wrap">{view.status !== 'assinado' && <button className="btn btn-primary" onClick={() => sign(view)}>✍️ Assinar digitalmente</button>}<button className="btn btn-ghost" onClick={() => { const w = window.open(''); w.document.write(`<pre style="font-family:sans-serif;white-space:pre-wrap;padding:32px">${contractText(getDB(), view.reservaId).replace(/</g, '&lt;')}</pre>`); w.print() }}>Baixar PDF</button></div></>}
+          <div className="flex wrap">{view.status !== 'assinado' && <button className="btn btn-primary" onClick={() => sign(view)}>Assinar digitalmente</button>}<button className="btn btn-ghost" onClick={() => { const w = window.open(''); w.document.write(`<pre style="font-family:sans-serif;white-space:pre-wrap;padding:32px">${contractText(getDB(), view.reservaId).replace(/</g, '&lt;')}</pre>`); w.print() }}>Baixar PDF</button></div></>}
       </Modal>
     </div>
   )
