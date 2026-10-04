@@ -1,0 +1,263 @@
+---
+title: Loca Jett Oficial — Especificação da Plataforma
+description: Especificação completa (design system, páginas, fluxos, banco de dados, integrações) da plataforma de locação de Jet Skis da Loca Jett Oficial em Goiás.
+---
+
+# Loca Jett Oficial — Especificação da Plataforma
+
+> **Locação de Jet Skis em Goiás · Sua próxima experiência começa na água.**
+> Projeto **exclusivamente náutico**: nada de motos, carros ou veículos terrestres.
+
+Este documento descreve a plataforma implementada neste repositório (frontend React + Vite, publicado na Vercel) e o que falta para levá-la à produção com backend real.
+
+---
+
+## 0. Estado atual da implementação
+
+| Camada | Status |
+|---|---|
+| Site público (Home, Catálogo, Detalhes, Experiências, Como funciona, Locais, Sobre, Contato) | ✅ Implementado |
+| Sistema de reserva + calendário de disponibilidade sem conflitos | ✅ Implementado |
+| 🛒 Minha Reserva (mini carrinho + página em 6 etapas) | ✅ Implementado |
+| Finalização pelo WhatsApp com número `LJ-XXXXXX` e mensagem automática | ✅ Implementado |
+| Área do cliente (reservas, locações, pagamentos, contratos, perfil, fidelidade, indicação) | ✅ Implementado |
+| Painel admin (18 módulos, permissões por perfil) | ✅ Implementado |
+| Persistência | ⚠️ `localStorage` do navegador (modo demonstração) |
+| Backend / banco central / pagamentos online / upload de fotos | 🔜 Próxima fase (ver §14–§17) |
+
+**Importante:** enquanto não houver backend, cada navegador tem seu próprio banco. As reservas chegam à empresa **pelo WhatsApp** (que já funciona para todos os visitantes). O painel admin mostra os dados do navegador onde é aberto.
+
+### Onde editar os dados da empresa
+`src/config.js` → objeto `SITE` (WhatsApp, telefone, endereço, CNPJ, redes sociais, horários). Campos vazios aparecem no site como `[INSERIR ...]`.
+
+---
+
+## 1. Engenharia reversa da referência
+
+Referência analisada: página de listagem "Aluguel de Jet Ski em Goiânia" (diretório MyLinQ). É uma página de diretório simples: título, nome da empresa, chamada para orçamento, telefone, endereço, região/categoria e um formulário de dúvidas.
+
+| Elemento da referência | Como foi transformado |
+|---|---|
+| Título "Aluguel de Jet Ski em…" (SEO local) | H1 cinematográfico + SEO "aluguel de Jet Ski em Goiás" no `<head>` e schema `LocalBusiness` |
+| "Solicite um orçamento online" | Barra de busca de disponibilidade + fluxo de reserva completo |
+| Telefone / WhatsApp | Botão flutuante de WhatsApp + finalização da reserva pelo WhatsApp |
+| Endereço / Região | Página **Locais** com mapa esquemático de Goiás por regiões |
+| Formulário "Perguntas e Dúvidas" | Página **Contato** com validação, enviando pelo WhatsApp |
+| Visual de diretório genérico | Identidade premium: oceano noturno + pôr do sol, vidro fosco, gradientes ciano/azul |
+
+Os dados reais da empresa da referência **não** foram copiados.
+
+---
+
+## 2. Design System
+
+### 2.1 Cores
+
+| Token | HEX | RGB | HSL | Uso |
+|---|---|---|---|---|
+| `--primary` | `#00B4FF` | 0,180,255 | 198 100% 50% | Ações, links, destaques |
+| `--primary-hover` | `#33C3FF` | 51,195,255 | 198 100% 60% | Hover |
+| `--secondary` | `#0057FF` | 0,87,255 | 220 100% 50% | Gradiente principal |
+| `--accent` | `#FFB547` | 255,181,71 | 36 100% 64% | Pôr do sol, badge do carrinho |
+| `--background` | `#030E1C` | 3,14,28 | 214 81% 6% | Fundo |
+| `--background-secondary` | `#061A31` | 6,26,49 | 212 78% 11% | Seções alternadas, sidebar |
+| `--surface` | `#0B2440` | 11,36,64 | 212 71% 15% | Cards |
+| `--text` | `#F2F8FF` | 242,248,255 | 213 100% 97% | Texto principal |
+| `--text-secondary` | `#B5C8DD` | 181,200,221 | 212 38% 79% | Parágrafos |
+| `--text-muted` | `#7890AA` | 120,144,170 | 211 20% 57% | Legendas |
+| `--border` | `rgba(148,197,255,.14)` | — | — | Bordas |
+| `--success` | `#22D3A0` | 34,211,160 | 163 72% 48% | Disponível / pago |
+| `--warning` | `#FFB547` | 255,181,71 | 36 100% 64% | Pendente / reservado |
+| `--danger` | `#FF5C7A` | 255,92,122 | 349 100% 68% | Cancelado / manutenção |
+| `--info` | `#5AB8FF` | 90,184,255 | 206 100% 68% | Aguardando atendimento |
+
+### 2.2 Gradientes
+
+```css
+--grad-primary: linear-gradient(135deg, var(--primary), var(--secondary)); /* botões */
+--grad-sunset:  linear-gradient(135deg, #FFB547, #FF6B6B);                 /* CTA secundário */
+--grad-ocean:   linear-gradient(180deg, #03142A 0%, #052B4F 55%, #00708F 100%); /* Hero */
+```
+
+### 2.3 Opacidades
+Use `color-mix()` ou RGBA a partir dos tokens: 100% · 90% · 80% · 60% · 40% · 20% · 10%. Ex.: `rgba(0,180,255,.10)` para fundos de badge, `.35` para glow, `.6` para overlays.
+
+### 2.4 Raios, sombras, container
+
+```css
+:root {
+  --radius-sm: 8px; --radius-md: 14px; --radius-lg: 20px; --radius-xl: 28px;
+  --shadow-sm: 0 2px 8px rgba(0,0,0,.25);
+  --shadow-md: 0 10px 30px rgba(0,0,0,.35);
+  --shadow-lg: 0 24px 60px rgba(0,30,80,.55);
+  --container: 1240px;
+}
+```
+
+---
+
+## 3. Tipografia
+
+- **Display:** Sora (500–800) · **Texto:** Inter (400–700) · **Fallback:** `system-ui, -apple-system, Segoe UI, Roboto, sans-serif`
+
+| Elemento | Família | Tamanho (mobile → desktop) | Peso | Line-height | Letter-spacing |
+|---|---|---|---|---|---|
+| H1 | Sora | `clamp(2.3rem, 6vw, 4.6rem)` | 800 | 1.15 | -0.02em |
+| H2 | Sora | `clamp(1.8rem, 3.6vw, 2.8rem)` | 700 | 1.15 | -0.02em |
+| H3 | Sora | `clamp(1.25rem, 2vw, 1.5rem)` | 700 | 1.15 | -0.02em |
+| H4 | Sora | 1.15rem | 600 | 1.2 | -0.01em |
+| H5/H6 | Sora | 1rem / .9rem | 600 | 1.3 | 0 |
+| Body | Inter | 16px | 400 | 1.6 | 0 |
+| Small | Inter | .85rem | 400 | 1.5 | 0 |
+| Caption / eyebrow | Inter | .78rem | 700 | 1.4 | .16em, uppercase |
+| Label | Inter | .82rem | 600 | 1.4 | 0 |
+| Botão | Inter | .95rem | 600 | 1 | 0 |
+| Placeholder | Inter | 1rem | 400 | — | cor `--text-muted` |
+
+Escala: o `clamp()` cobre mobile (≤680px), tablet (≤1024px), desktop e large desktop (≥1440px, limitado pelo container de 1240px).
+
+---
+
+## 4. Layout global
+
+| Breakpoint | Largura | Grid |
+|---|---|---|
+| Mobile | ≤ 680px | 1 coluna, gutter 20px |
+| Tablet | 681–1024px | 2 colunas |
+| Desktop | 1025–1439px | 3–4 colunas |
+| Large desktop | ≥ 1440px | container 1240px centralizado |
+
+- Seções: `padding: clamp(64px, 9vw, 120px) 0`
+- Gaps: 24px (grids), 12px (flex), 8px (chips)
+- Navbar: 76px fixa, vidro fosco ao rolar; menu hamburger ≤ 1080px
+- Admin: sidebar 260px + conteúdo; ≤ 960px sidebar vira gaveta
+
+---
+
+## 5. Arquitetura de páginas
+
+```text
+Site      /  /jet-skis  /jet-skis/:id  /experiencias  /como-funciona  /locais  /sobre  /contato  /login  /cadastro  /minha-reserva
+Cliente   /cliente  /cliente/reservas  /cliente/locacoes  /cliente/pagamentos  /cliente/perfil  /cliente/contratos
+Admin     /admin/dashboard  /admin/jet-skis  /admin/clientes  /admin/reservas  /admin/locacoes  /admin/calendario
+          /admin/pagamentos  /admin/financeiro  /admin/manutencao  /admin/contratos  /admin/promocoes  /admin/fidelidade
+          /admin/indicacoes  /admin/avaliacoes  /admin/relatorios  /admin/notificacoes  /admin/usuarios  /admin/configuracoes
+```
+
+Arquivos: `src/pages/Public.jsx`, `src/pages/MinhaReserva.jsx`, `src/pages/Cliente.jsx`, `src/pages/admin/Admin.jsx`, `src/store.js` (dados e regras), `src/styles.css` (tokens e componentes).
+
+---
+
+## 6. Componentes
+
+- **Navbar** — logo, links, `🛒 Minha Reserva` com contador (Jet Ski + serviços + experiência paga), Login/Minha conta, hamburger no mobile.
+- **Mini carrinho** — gaveta lateral com Jet Ski, duração, adicionais, cupom, total, caução e botão **VER MINHA RESERVA**.
+- **Hero** — céu noturno → pôr do sol, sol animado, 3 camadas de ondas em loop, Jet Ski ilustrado flutuando. CTAs "Reservar agora" e "Ver Jet Skis". Barra de busca (data, duração, pessoas, local) sobreposta.
+- **Card de Jet Ski** — imagem, status, marca/modelo, capacidade, potência, velocidade, preço/hora, **Ver detalhes** e **Reservar**.
+- **Calendário** — estados Disponível · Reservado · Em uso · Manutenção · Indisponível; só permite clicar em dias com horários livres.
+- **Slots de horário** — calculados por `slotsFor(jetId, data, duração)`, que remove qualquer intervalo sobreposto a outra reserva não cancelada.
+
+### Exemplos CSS
+
+```css
+.btn-primary { background: var(--grad-primary); color: #fff; border-radius: 999px; padding: 13px 22px; }
+.card { background: linear-gradient(180deg, rgba(16,48,79,.65), rgba(11,36,64,.55)); border: 1px solid var(--border); border-radius: var(--radius-lg); }
+.input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(0,180,255,.15); }
+```
+
+### Equivalente Tailwind
+
+```html
+<button class="rounded-full bg-gradient-to-br from-[#00B4FF] to-[#0057FF] px-6 py-3 font-semibold text-white hover:-translate-y-0.5 transition">Reservar agora</button>
+<div class="rounded-[20px] border border-sky-200/15 bg-[#0B2440]/60 p-6 backdrop-blur">…card…</div>
+<input class="w-full rounded-lg border border-sky-200/15 bg-[#030E1C]/60 px-3.5 py-3 focus:border-[#00B4FF] focus:ring-4 focus:ring-[#00B4FF]/15" />
+```
+
+---
+
+## 7. Fluxo do cliente
+
+```text
+Entrar no site → Ver Jet Skis → Escolher Jet Ski → Data → Horário → Duração → Experiências/serviços
+→ Dados pessoais → 🛒 Minha Reserva → Resumo → Finalizar → WhatsApp → Atendimento Loca Jett
+```
+
+**Minha Reserva** (`/minha-reserva`) em 6 etapas: 1. Jet Ski · 2. Data e horário · 3. Experiência · 4. Dados pessoais · 5. Resumo · 6. Finalização. Não é possível avançar sem data/horário válidos e dados válidos.
+
+**Validações:** nome e sobrenome, CPF (dígitos verificadores), telefone (10–11 dígitos), e-mail, data de nascimento (titular ≥ 18 anos), cidade, estado e aceite dos termos/LGPD. Máscaras para CPF, telefone e CEP.
+
+**Preço:** 1h/2h/3h = preço/hora × horas · 4h = preço de meio período · 8h = diária. Total = Jet Ski + adicionais − cupom + taxa fixa. Caução exibida à parte (devolvível).
+
+---
+
+## 8. Finalização pelo WhatsApp
+
+Ao clicar em **Finalizar Reserva pelo WhatsApp**:
+1. valida os dados → 2. verifica disponibilidade novamente → 3. salva reserva e cliente → 4. gera número `LJ-XXXXXX` (6 caracteres sem ambíguos, único) → 5. calcula total → 6. monta a mensagem → 7. abre `https://wa.me/<numero>?text=<mensagem codificada>` (funciona no WhatsApp Web e no app).
+
+- Número da empresa: `settings.whatsapp` (painel › Configurações) ou `SITE.whatsapp` em `src/config.js`. **Nunca fixo no código de negócio.** Sem número configurado, o WhatsApp abre para o usuário escolher o contato.
+- **CPF e endereço não são enviados** pelo WhatsApp (LGPD).
+- Status inicial: **Aguardando atendimento** → Aguardando confirmação → Confirmada → Pagamento pendente → Pagamento confirmado → Em andamento → Concluída / Cancelada.
+
+---
+
+## 9. Área do cliente
+Próxima reserva, histórico, pagamentos (pagos/pendentes/comprovante), contratos (visualizar, assinar digitalmente, gerar PDF), perfil, nível de fidelidade e link de indicação.
+
+## 10. Painel administrativo
+Login com perfis **Proprietário** (tudo), **Gerente**, **Atendente** e **Operacional** (permissões por módulo em `ROLES`, `src/store.js`). Demonstração: `admin@locajett.com / admin123` — **troque em Usuários antes de usar**.
+
+- **Dashboard:** faturamento hoje/semana/mês/ano, reservas hoje/pendentes/confirmadas, ticket médio, Jet Skis disponíveis/reservados/manutenção, clientes; gráficos de faturamento 7 dias, reservas por dia, horários mais procurados, Jet Skis mais reservados.
+- **Reservas:** filtros, confirmar, cancelar, iniciar, concluir (+pontos), alterar data/horário/Jet Ski com checagem de conflito, gerar contrato, abrir WhatsApp do cliente; lista de **reservas abandonadas** com lembrete + cupom.
+- **Jet Skis, Clientes, Locações, Manutenção (com alertas), Pagamentos, Financeiro (rentabilidade e ranking), Contratos, Cupons, Fidelidade, Indicações, Avaliações (responder/ocultar), Relatórios (CSV), Notificações, Usuários, Configurações (WhatsApp, horário, taxa, locais, experiências, serviços, limpar dados de exemplo).**
+
+---
+
+## 11. Banco de dados (modelo relacional para produção)
+
+```text
+users(id, nome, email UNIQUE, senha_hash, papel ENUM, ativo, created_at)
+clients(id, user_id FK→users NULL, nome, cpf UNIQUE, telefone, whatsapp, email UNIQUE, nascimento, endereco, cidade, estado, cep, status, pontos, ref_code UNIQUE, indicado_por FK→clients, created_at)
+admins → users com papel ∈ {proprietario, gerente, atendente, operacional}
+locations(id, nome, regiao, descricao, lat, lng, ativo)
+jet_skis(id, identificacao UNIQUE, marca, modelo, ano, categoria, potencia, capacidade, cor, vel_max, horas_uso, preco_hora, preco_periodo, preco_diaria, caucao, location_id FK, status ENUM, descricao, caracteristicas JSON, regras JSON, doc_validade)
+jet_ski_images(id, jet_ski_id FK, url, ordem, alt)
+services(id, nome, descricao, imagem, preco, ativo)          experiences(id, nome, descricao, icon, preco, ativo)
+reservations(id 'LJ-XXXXXX' PK, client_id FK, jet_ski_id FK, location_id FK, experience_id FK, data, hora_inicio, duracao_h, pessoas, subtotal, adicionais, desconto, taxas, caucao, total, coupon_id FK NULL, status ENUM, pagamento ENUM, obs, created_at)
+reservation_services(reservation_id FK, service_id FK, preco)   -- N:N
+rentals(id, reservation_id FK UNIQUE, saida, retorno, horas, caucao_status, danos, obs)
+payments(id, reservation_id FK, tipo ENUM(sinal, restante, caucao, total), metodo ENUM(pix, cartao, dinheiro), valor, status, gateway_id, comprovante_url, pago_em)
+maintenance(id, jet_ski_id FK, data, horas_uso, tipo, descricao, custo, responsavel, proxima, status)
+documents(id, owner_type, owner_id, tipo, url, validade)
+contracts(id, reservation_id FK UNIQUE, pdf_url, hash, assinado_cliente_em, ip_assinatura, status)
+coupons(id, codigo UNIQUE, tipo, valor, validade, limite, usos, minimo, ativo)  coupon_jet_skis(coupon_id, jet_ski_id)
+promotions(id, nome, inicio, fim, regra JSON)        loyalty(id, client_id FK, pontos, motivo, reservation_id, created_at)
+referrals(id, referrer_id FK→clients, referred_id FK→clients, reservation_id FK NULL, beneficio, status)
+reviews(id, reservation_id FK UNIQUE, client_id FK, atendimento, jetski, experiencia, facilidade, geral, comentario, resposta, visivel)
+notifications(id, tipo, texto, user_id NULL, lida, created_at)   settings(chave PK, valor JSON)
+expenses(id, descricao, valor, data, jet_ski_id NULL)            abandoned_carts(id, session_id, client_contact, payload JSON, etapa, updated_at)
+```
+
+**Integridade de agenda:** no PostgreSQL use `EXCLUDE USING gist (jet_ski_id WITH =, tsrange(inicio, fim) WITH &&) WHERE (status <> 'cancelada')` para impossibilitar reservas sobrepostas mesmo com acessos simultâneos.
+
+---
+
+## 12. Segurança e LGPD
+Autenticação com senha `bcrypt/argon2` (o protótipo usa SHA-256 apenas localmente), sessões `httpOnly` + `SameSite`, autorização por papel em **cada rota da API**, validação no servidor (zod), queries parametrizadas (SQL Injection), escape de saída (React já evita XSS), rate limiting em login e criação de reservas, `robots.txt` bloqueando `/admin` e `/cliente`, consentimento LGPD, mínimo de dados no WhatsApp.
+
+## 13. SEO e performance
+Title/description/keywords focados em "aluguel de Jet Ski em Goiás", Open Graph, schema `LocalBusiness`, `sitemap.xml`, `robots.txt`, URLs amigáveis. Ilustrações em SVG (leves); ao usar fotos reais, servir WebP/AVIF com `loading="lazy"`. Code splitting por rota recomendado quando o admin crescer.
+
+---
+
+## 14. Próxima fase — backend
+Recomendado: **Next.js (App Router) + PostgreSQL (Neon/Supabase) + Prisma**, ou Vercel Functions + Postgres. Trocar `getDB/setDB/upsert` em `src/store.js` por chamadas `fetch('/api/...')`. Endpoints: `GET /api/jet-skis`, `GET /api/availability?jet=&date=&dur=`, `POST /api/reservations`, `PATCH /api/reservations/:id`, `POST /api/auth/*`, CRUD admin.
+
+## 15. Pagamentos
+Preparado para PIX (Mercado Pago / Asaas / Efí), cartão e pagamento online, com **sinal**, **caução** e **restante** como registros separados em `payments`, webhook atualizando o status da reserva.
+
+## 16. Contrato digital
+Após confirmação: gerar contrato com dados do cliente, Jet Ski, período e valores → exibir termos → assinatura (aceite + data/hora + IP, ou integração ZapSign/Clicksign) → armazenar → gerar PDF.
+
+## 17. Dados que a empresa precisa fornecer
+`[INSERIR TELEFONE]` `[INSERIR WHATSAPP]` `[INSERIR ENDEREÇO]` `[INSERIR CNPJ]` `[INSERIR PREÇOS]` `[INSERIR CIDADES ATENDIDAS]` `[INSERIR HORÁRIOS]` `[INSERIR REDES SOCIAIS]` · fotos reais da frota · política de cancelamento · regras de habilitação · benefícios de fidelidade.
