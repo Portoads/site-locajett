@@ -18,13 +18,13 @@ export function JetCard({ jet, i = 0 }) {
     <Reveal delay={i * 90} className="card card-hover jet-card">
       <Link to={'/jet-skis/' + jet.id} className="jet-media" style={{ aspectRatio: '4/3' }} aria-label={`Ver ${jet.marca} ${jet.modelo}`}><JetPhoto jet={jet} /><JetBadge status={jet.status} /></Link>
       <div className="jet-body">
-        <div><span className="jet-kicker">{[jet.marca, jet.categoria, jet.ano].filter(Boolean).join(' · ')}</span><h3 style={{ margin: '6px 0 0', fontSize: '2rem' }}>{jet.modelo}</h3>{loc && <small className="muted">{loc.nome}</small>}</div>
+        <div><span className="jet-kicker">{[jet.marca, jet.categoria, jet.ano].filter(Boolean).join(' · ')}</span><h3 style={{ margin: '8px 0 0' }}>{jet.modelo}</h3>{loc && <small className="muted">{loc.nome}</small>}</div>
         <div className="specs"><div className="spec"><span>Potência</span><strong>{jet.potencia || '—'}</strong></div><div className="spec"><span>Ano</span><strong>{jet.ano || '—'}</strong></div><div className="spec"><span>Pessoas</span><strong>{jet.capacidade || 'Consulte'}</strong></div></div>
-        <div className="flex between" style={{ marginTop: 'auto', alignItems: 'flex-end' }}>
+        <div className="price-row">
           <div>{promo && <div className="price-old">{brl(jet.precoOriginal)}</div>}<div className="price">{brl(jet.precoDiaria)}<small> / diária</small></div></div>
           {promo && <span className="badge tone-accent">Condição especial</span>}
         </div>
-        <div className="grid g2" style={{ gap: 8 }}>
+        <div className="jet-actions">
           <Link to={'/jet-skis/' + jet.id} className="btn btn-ghost btn-sm">Detalhes</Link>
           <button className="btn btn-primary btn-sm" onClick={reserve} disabled={jet.status === 'manutencao' || jet.status === 'indisponivel'}>Reservar</button>
         </div>
@@ -58,7 +58,7 @@ export function Home() {
             <span className="eyebrow">Loca Jett Oficial · Goiás</span>
             <h1>Exclusividade sobre as águas de <em>Goiás</em>.</h1>
             <p className="lead">Jet Skis novos de alta performance, atendimento dedicado e experiências sob medida nos lagos do estado. Reserve sua diária em poucos minutos.</p>
-            <div className="flex wrap" style={{ marginTop: 36, gap: 14 }}>
+            <div className="hero-actions">
               <Link to="/jet-skis" className="btn btn-primary">Reservar agora <Icon name="arrow" size={16} /></Link>
               <a href="#frota" className="btn btn-ghost">Conhecer a frota</a>
             </div>
@@ -83,22 +83,24 @@ export function Home() {
 
       <section className="section" id="frota">
         <div className="container">
-          <div className="flex between wrap" style={{ marginBottom: 56, alignItems: 'flex-end', gap: 24 }}>
-            <Reveal><span className="eyebrow">A frota</span><h2 style={{ margin: 0 }}>Escolha o seu <em>Jet Ski</em></h2></Reveal>
-            <Link to="/jet-skis" className="link-arrow">Ver toda a frota <Icon name="arrow" size={15} /></Link>
-          </div>
-          <div className={'grid ' + (jets.length === 2 ? 'g2' : 'g3')} style={jets.length === 2 ? { maxWidth: 960, gap: 32 } : { gap: 32 }}>{jets.map((j, i) => <JetCard key={j.id} jet={j} i={i} />)}</div>
+          <Reveal className="section-head center">
+            <span className="eyebrow">A frota</span>
+            <h2>Escolha o seu <em>Jet Ski</em></h2>
+            <p>Modelos novos de alta performance, revisados antes de cada locação e entregues com coletes e orientação de segurança.</p>
+          </Reveal>
+          <div className={'fleet-grid ' + (jets.length < 3 ? 'n' + jets.length : '')}>{jets.map((j, i) => <JetCard key={j.id} jet={j} i={i} />)}</div>
+          <div className="center" style={{ marginTop: 48 }}><Link to="/jet-skis" className="link-arrow">Ver toda a frota <Icon name="arrow" size={15} /></Link></div>
         </div>
       </section>
 
       <section className="section" style={{ background: 'var(--background-secondary)', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)' }}>
-        <div className="container split">
-          <Reveal className="photo" style={{ aspectRatio: '4/5' }}><img src={PHOTOS.action} alt="Jet Ski em alta velocidade sobre a água" loading="lazy" /></Reveal>
-          <Reveal delay={120}>
+        <div className="container split stretch">
+          <Reveal className="photo"><img src={PHOTOS.action} alt="Jet Ski em alta velocidade sobre a água" loading="lazy" /></Reveal>
+          <Reveal delay={120} className="split-copy">
             <span className="eyebrow">O padrão Loca Jett</span>
             <h2>Cada detalhe pensado para o seu <em>dia na água</em>.</h2>
             <p style={{ maxWidth: 480 }}>Não alugamos apenas um Jet Ski. Entregamos uma experiência completa, com o cuidado e a discrição que você espera.</p>
-            <div className="numbered" style={{ marginTop: 40, gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
+            <div className="numbered n2" style={{ marginTop: 36 }}>
               {PILLARS.map(([t, d], i) => <div key={t}><span className="n">{String(i + 1).padStart(2, '0')}</span><h4>{t}</h4><p>{d}</p></div>)}
             </div>
           </Reveal>
@@ -107,10 +109,10 @@ export function Home() {
 
       {exps.length > 0 && <section className="section">
         <div className="container">
-          <div className="split" style={{ alignItems: 'start', marginBottom: 48 }}>
-            <Reveal><span className="eyebrow">Experiências</span><h2 style={{ margin: 0 }}>Mais que uma locação, <em>um momento</em>.</h2></Reveal>
-            <Reveal delay={100}><p style={{ maxWidth: 460, marginTop: 8 }}>Do dia inteiro no comando a pacotes para grupos e eventos — escolha o formato ideal e nós cuidamos do resto.</p></Reveal>
-          </div>
+          <Reveal className="section-head">
+            <div><span className="eyebrow">Experiências</span><h2>Mais que uma locação, <em>um momento</em>.</h2></div>
+            <p style={{ maxWidth: 420, margin: '0 0 6px' }}>Do dia inteiro no comando a pacotes para grupos e eventos — escolha o formato ideal e nós cuidamos do resto.</p>
+          </Reveal>
           <Reveal className="list-rows">{exps.map((e, i) => (
             <div key={e.id}><span className="n">{String(i + 1).padStart(2, '0')}</span><div><h3>{e.nome}</h3><p>{e.descricao}</p></div><Link to="/experiencias" className="link-arrow">Saiba mais <Icon name="arrow" size={14} /></Link></div>
           ))}</Reveal>
@@ -119,14 +121,14 @@ export function Home() {
 
       {promos.length > 0 && <section className="section" style={{ paddingTop: 0 }}>
         <div className="container">
-          <Reveal style={{ marginBottom: 32 }}><span className="eyebrow">Condições especiais</span><h2 style={{ margin: 0 }}>Benefícios <em>exclusivos</em></h2><p style={{ marginTop: 12, maxWidth: 560 }}>Solicite seu cupom pelo WhatsApp{db.settings.instagram ? ' ou Instagram ' + db.settings.instagram : ''} e aplique em Minha Reserva. Válido por {promos[0].validadeDias || 30} dias após o recebimento.</p></Reveal>
-          <div className="grid g2">{promos.map((c, i) => <Reveal key={c.id} delay={i * 80}><a href={waLink(whatsNumber(), `Olá! Gostaria de receber o cupom de ${c.valor}% de desconto da Loca Jett.`)} target="_blank" rel="noreferrer" className="card card-hover" style={{ display: 'block', padding: 0, overflow: 'hidden' }}><img src={c.imagem} alt={`Cupom de ${c.valor}% de desconto`} loading="lazy" style={{ width: '100%' }} /></a></Reveal>)}</div>
+          <Reveal className="section-head center"><span className="eyebrow">Condições especiais</span><h2>Benefícios <em>exclusivos</em></h2><p style={{ maxWidth: 560 }}>Solicite seu cupom pelo WhatsApp{db.settings.instagram ? ' ou Instagram ' + db.settings.instagram : ''} e aplique em Minha Reserva. Válido por {promos[0].validadeDias || 30} dias após o recebimento.</p></Reveal>
+          <div className="promo-grid">{promos.map((c, i) => <Reveal key={c.id} delay={i * 80}><a href={waLink(whatsNumber(), `Olá! Gostaria de receber o cupom de ${c.valor}% de desconto da Loca Jett.`)} target="_blank" rel="noreferrer" className="card card-hover promo-card"><img src={c.imagem} alt={`Cupom de ${c.valor}% de desconto`} loading="lazy" /><div className="promo-foot"><span>{c.valor}% de desconto</span><span>Solicitar <Icon name="arrow" size={14} /></span></div></a></Reveal>)}</div>
         </div>
       </section>}
 
       <section className="section" style={{ paddingTop: 0 }}>
         <div className="container">
-          <Reveal style={{ marginBottom: 8 }}><span className="eyebrow">Como funciona</span><h2>Da reserva à água em <em>quatro etapas</em></h2></Reveal>
+          <Reveal className="section-head"><div><span className="eyebrow">Como funciona</span><h2>Da reserva à água em <em>quatro etapas</em></h2></div><Link to="/como-funciona" className="link-arrow">Ver detalhes <Icon name="arrow" size={14} /></Link></Reveal>
           <div className="numbered">{[['Escolha o modelo', 'Compare potência, ano e valor da diária.'], ['Data e diárias', 'O calendário mostra apenas os dias realmente livres.'], ['Sinal de confirmação', `${db.settings.entradaPct}% via Pix ou cartão para garantir a data.`], ['Atendimento direto', 'Finalize pelo WhatsApp e combine retirada e devolução.']].map(([t, d], i) => (
             <Reveal key={t} delay={i * 80}><span className="n">{String(i + 1).padStart(2, '0')}</span><h4>{t}</h4><p>{d}</p></Reveal>
           ))}</div>
@@ -135,9 +137,9 @@ export function Home() {
 
       <section className="section" style={{ paddingTop: 0 }}>
         <div className="container">
-          <Reveal className="card flex wrap between" style={{ padding: 'clamp(28px,4vw,48px)', gap: 24 }}>
-            <div><span className="eyebrow">Venda de Jet Skis</span><h3 style={{ margin: 0, fontSize: '2rem' }}>Pensando em ter o seu?</h3><p style={{ margin: '8px 0 0' }}>Conheça os modelos à venda e negocie diretamente com a Loca Jett.</p></div>
-            <Link to="/venda" className="btn btn-ghost">Ver modelos à venda</Link>
+          <Reveal className="card sale-band">
+            <div><span className="eyebrow">Venda de Jet Skis</span><h3>Pensando em ter o seu?</h3><p>Conheça os modelos à venda e negocie diretamente com a Loca Jett.</p></div>
+            <Link to="/venda" className="btn btn-ghost">Ver modelos à venda <Icon name="arrow" size={15} /></Link>
           </Reveal>
         </div>
       </section>
@@ -145,11 +147,11 @@ export function Home() {
       <section className="cta-band">
         <div className="bg" style={{ backgroundImage: `url(${PHOTOS.sunset})` }} aria-hidden="true" />
         <div className="container">
-          <Reveal>
+          <Reveal className="center">
             <span className="eyebrow">Loca Jett Oficial</span>
             <h2 style={{ maxWidth: 760, margin: '0 auto 20px' }}>Sua próxima experiência <em>começa na água</em>.</h2>
             <p style={{ maxWidth: 500, margin: '0 auto 36px', color: '#D9D4CA' }}>Garanta sua data agora e finalize em poucos minutos com nosso atendimento.</p>
-            <div className="flex wrap" style={{ justifyContent: 'center', gap: 14 }}><Link to="/jet-skis" className="btn btn-primary">Reservar agora</Link><a className="btn btn-ghost" href={waLink(whatsNumber(), 'Olá! Gostaria de reservar um Jet Ski com a Loca Jett Oficial.')} target="_blank" rel="noreferrer"><WaIcon size={16} /> Falar com um consultor</a></div>
+            <div className="cta-actions"><Link to="/jet-skis" className="btn btn-primary">Reservar agora</Link><a className="btn btn-ghost" href={waLink(whatsNumber(), 'Olá! Gostaria de reservar um Jet Ski com a Loca Jett Oficial.')} target="_blank" rel="noreferrer"><WaIcon size={16} /> Falar com um consultor</a></div>
           </Reveal>
         </div>
       </section>
@@ -169,14 +171,14 @@ export function JetSkis() {
       <PageHead eyebrow="A frota" title={<>Jet Skis <em>disponíveis</em></>} text="Modelos novos de alta performance, entregues revisados, com coletes e orientação de segurança." />
       <section className="section" style={{ paddingTop: 40 }}>
         <div className="container">
-          <div className="flex wrap" style={{ marginBottom: 40, gap: 10 }}>
+          <div className="flex wrap filters" style={{ marginBottom: 40, gap: 10, justifyContent: 'center' }}>
             <button className={'chip ' + (!f.cat ? 'on' : '')} onClick={() => setF({ ...f, cat: '' })}>Todos</button>
             {cats.map((c) => <button key={c} className={'chip ' + (f.cat === c ? 'on' : '')} onClick={() => setF({ ...f, cat: c })}>{c}</button>)}
             <select className="input" style={{ width: 'auto' }} value={f.local} onChange={(e) => setF({ ...f, local: e.target.value })} aria-label="Filtrar por local"><option value="">Todos os locais</option>{db.locations.map((l) => <option key={l.id} value={l.id}>{l.nome}</option>)}</select>
             <select className="input" style={{ width: 'auto' }} value={f.cap} onChange={(e) => setF({ ...f, cap: +e.target.value })} aria-label="Capacidade"><option value={0}>Qualquer capacidade</option><option value={2}>2+ pessoas</option><option value={3}>3 pessoas</option></select>
             <select className="input" style={{ width: 'auto' }} value={f.ord} onChange={(e) => setF({ ...f, ord: e.target.value })} aria-label="Ordenar"><option value="preco">Menor preço</option><option value="-preco">Maior preço</option></select>
           </div>
-          {list.length ? <div className="grid g3" style={{ gap: 32 }}>{list.map((j, i) => <JetCard key={j.id} jet={j} i={i} />)}</div> : <div className="empty card">Nenhum Jet Ski encontrado com esses filtros.</div>}
+          {list.length ? <div className={'fleet-grid ' + (list.length < 3 ? 'n' + list.length : '')}>{list.map((j, i) => <JetCard key={j.id} jet={j} i={i} />)}</div> : <div className="empty card">Nenhum Jet Ski encontrado com esses filtros.</div>}
         </div>
       </section>
     </>
@@ -422,7 +424,7 @@ export function Venda() {
               <div><span className="jet-kicker">{[x.marca, x.ano].filter(Boolean).join(' · ')}</span><h3 style={{ margin: '6px 0 0', fontSize: '2rem' }}>{x.modelo}</h3></div>
               <div className="specs"><div className="spec"><span>Ano</span><strong>{x.ano || '—'}</strong></div><div className="spec"><span>Horas</span><strong>{x.horasUso ?? '—'}</strong></div><div className="spec"><span>Estado</span><strong>{x.estado || '—'}</strong></div></div>
               <div className="price" style={{ marginTop: 'auto' }}>{x.preco ? brl(x.preco) : 'Sob consulta'}</div>
-              <div className="grid g2" style={{ gap: 8 }}><Link to={'/venda/' + x.id} className="btn btn-ghost btn-sm">Detalhes</Link><a className="btn btn-primary btn-sm" target="_blank" rel="noreferrer" href={waLink(whatsNumber(), `Olá! Tenho interesse no Jet Ski à venda: ${x.marca || ''} ${x.modelo} ${x.ano || ''}.`)}>Tenho interesse</a></div>
+              <div className="jet-actions"><Link to={'/venda/' + x.id} className="btn btn-ghost btn-sm">Detalhes</Link><a className="btn btn-primary btn-sm" target="_blank" rel="noreferrer" href={waLink(whatsNumber(), `Olá! Tenho interesse no Jet Ski à venda: ${x.marca || ''} ${x.modelo} ${x.ano || ''}.`)}>Tenho interesse</a></div>
             </div>
           </Reveal>
         ))}</div> : <div className="card empty" style={{ padding: 'clamp(40px,6vw,80px) 24px' }}><h3 className="serif" style={{ color: 'var(--text)' }}>Novas oportunidades em breve</h3><p style={{ maxWidth: 440, margin: '0 auto 24px' }}>Deseja comprar ou vender um Jet Ski? Fale com a nossa equipe e receba as próximas ofertas em primeira mão.</p><a className="btn btn-primary" target="_blank" rel="noreferrer" href={waLink(whatsNumber(), 'Olá! Gostaria de informações sobre Jet Skis à venda.')}>Falar com um consultor</a></div>}
