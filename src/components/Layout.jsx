@@ -85,8 +85,8 @@ export function Footer() {
     <footer className="footer">
       <div className="container">
         <div className="footer-grid">
-          <div><Logo size={58} /><p style={{ marginTop: 24, maxWidth: 340 }}>Locação de Jet Skis de alto padrão em Goiás. Frota nova, atendimento dedicado e experiências sob medida.</p>
-            {st.instagram && <a href={st.instagramUrl || '#'} target="_blank" rel="noreferrer" className="flex" style={{ gap: 10, marginTop: 8 }}><Icon name="insta" size={17} /> {st.instagram}</a>}</div>
+          <div className="footer-brand"><Logo size={58} /><p>Locação de Jet Skis de alto padrão em Goiás. Frota nova, atendimento dedicado e experiências sob medida.</p>
+            {st.instagram && <a href={st.instagramUrl || '#'} target="_blank" rel="noreferrer" className="flex" style={{ gap: 10 }}><Icon name="insta" size={17} /> {st.instagram}</a>}</div>
           <div className="stack"><h4>Navegação</h4>{LINKS.map(([to, l]) => <div key={to}><Link to={to}>{l}</Link></div>)}</div>
           <div className="stack"><h4>Cliente</h4><div><Link to="/minha-reserva">Minha Reserva</Link></div><div><Link to="/cliente">Área do cliente</Link></div><div><Link to="/login">Entrar</Link></div><div><Link to="/cadastro">Criar conta</Link></div></div>
           <div className="stack"><h4>Atendimento</h4>
@@ -95,8 +95,7 @@ export function Footer() {
             <div className="small" style={{ color: 'var(--text-secondary)' }}>{st.diasFuncionamento || 'Atendimento mediante agendamento'}</div>
           </div>
         </div>
-        <div className="divider" style={{ margin: '64px 0 24px' }} />
-        <div className="flex between wrap small muted"><span>© {new Date().getFullYear()} Loca Jett Oficial · Goiás{SITE.cnpj ? ' · CNPJ ' + SITE.cnpj : ''}</span><span>Dados tratados conforme a LGPD.</span></div>
+        <div className="footer-bottom"><span>© {new Date().getFullYear()} Loca Jett Oficial · Goiás{SITE.cnpj ? ' · CNPJ ' + SITE.cnpj : ''}</span><span>Dados tratados conforme a LGPD.</span></div>
       </div>
     </footer>
   )
