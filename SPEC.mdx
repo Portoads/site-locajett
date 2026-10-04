@@ -261,3 +261,48 @@ Após confirmação: gerar contrato com dados do cliente, Jet Ski, período e va
 
 ## 17. Dados que a empresa precisa fornecer
 `[INSERIR TELEFONE]` `[INSERIR WHATSAPP]` `[INSERIR ENDEREÇO]` `[INSERIR CNPJ]` `[INSERIR PREÇOS]` `[INSERIR CIDADES ATENDIDAS]` `[INSERIR HORÁRIOS]` `[INSERIR REDES SOCIAIS]` · fotos reais da frota · política de cancelamento · regras de habilitação · benefícios de fidelidade.
+
+---
+
+## 18. Atualização — regras da Loca Jett (out/2026)
+
+**Locação somente por diária** (mínimo 1). O cliente escolhe Jet Ski → data de início → quantidade de diárias; o total é `diárias × preço da diária` (+ adicionais − cupom). Sem aluguel por hora.
+
+| Jet Ski | Preço normal (riscado) | Diária atual |
+|---|---|---|
+| Sea-Doo GTI 170 (2024/2025) | R$ 1.800 | R$ 1.250 |
+| Sea-Doo RXT-X 300 Turbo (2023) | R$ 2.100 | R$ 1.600 |
+
+- **Entrada de 50%** (configurável) para confirmar, via **Pix** ou **cartão**. Chave Pix e link do cartão ficam em *Admin › Configurações*.
+- **Idade mínima 18 anos** (validada no site e no servidor). Aviso de **habilitação de Motonauta** ligável/desligável e com texto editável.
+- **Sem conflitos:** o servidor recusa (HTTP 409) qualquer reserva que sobreponha outra reserva ativa ou um **bloqueio de datas** do mesmo Jet Ski.
+- **E-mail ao administrador** a cada nova reserva (cliente, WhatsApp, Jet Ski, início, diárias, término, total, entrada, forma de pagamento, status).
+- **Venda de Jet Skis:** página `/venda` e `/venda/:id`; cadastro em *Admin › Venda de Jet Skis* (fotos, modelo, ano, horas, descrição, estado, preço, informações adicionais). O botão "Tenho interesse" abre o WhatsApp.
+- **Cupons:** `LOCAJET10` (10%) e `LOCAJET15` (15%) — códigos editáveis em *Admin › Cupons*. As artes aparecem na página inicial.
+
+### Backend (Vercel Functions + Vercel Blob privado)
+
+| Endpoint | Uso |
+|---|---|
+| `GET /api/public` | Jet Skis, preços, venda, bloqueios, configurações públicas e períodos ocupados (sem dados pessoais) |
+| `POST /api/reserve` | Valida dados, idade e conflito; calcula o preço no servidor; gera `LJ-XXXXXX`; salva; envia e-mail |
+| `GET /api/coupon?code=` | Valida cupom sem expor a lista de códigos |
+| `POST /api/admin` | `login` · `get` · `save` · `testmail` (sessão assinada, 12 h) |
+
+O banco é um JSON privado em `locajett/db.json` no Blob store **locajett-db**. Senhas da equipe ficam com hash.
+
+### Variáveis de ambiente (Vercel › Settings › Environment Variables)
+
+| Variável | Para quê |
+|---|---|
+| `BLOB_READ_WRITE_TOKEN` | Acesso ao banco (já criada ao conectar o Blob) |
+| `ADMIN_PASSWORD` | Senha inicial do proprietário (só na criação do banco) |
+| `ADMIN_SECRET` | Assina as sessões do painel |
+| `RESEND_API_KEY` | **Falta** — chave do [Resend](https://resend.com) para enviar os e-mails |
+| `MAIL_FROM` | Opcional — remetente (ex.: `Loca Jett <reservas@seudominio.com.br>`) após verificar o domínio no Resend |
+| `ADMIN_EMAIL` | Opcional — alternativa ao e-mail definido no painel |
+
+> Sem domínio verificado, o Resend só entrega para o e-mail da própria conta Resend. Crie a conta com o e-mail do proprietário ou verifique um domínio.
+
+### Ainda a receber do proprietário
+E-mail do administrador · chave Pix · plataforma/link de cartão · endereço e Google Maps · horários de retirada/devolução · dias de funcionamento · cancelamento · chuva/mau tempo · documentos · regras de segurança · capacidade de cada Jet Ski · Jet Skis à venda · fotos/vídeos reais (sem preço na arte) · logo.
